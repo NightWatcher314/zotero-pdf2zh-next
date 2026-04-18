@@ -67,6 +67,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ## Project Notes
 
 - This repo ships the server through multiple targets: local `uv`, Docker, and Homebrew.
+- Keep the plugin and server version aligned. When bumping a release, update both `plugin/package.json` and the server version fields in `server/pyproject.toml` and `server/server.py`.
 - When changing server packaging or startup behavior, also review:
   - `server/pyproject.toml`
   - `server/uv.lock`

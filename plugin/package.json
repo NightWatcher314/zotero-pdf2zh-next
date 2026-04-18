@@ -1,6 +1,6 @@
 {
     "name": "zotero-pdf2zh-next",
-    "version": "4.0.3",
+    "version": "5.0.0",
     "description": "Minimal Zotero bridge for pdf2zh_next",
     "config": {
         "addonName": "zotero-pdf2zh-next",
