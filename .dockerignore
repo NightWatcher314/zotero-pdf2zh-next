@@ -1,0 +1,11 @@
+.git
+.github
+.vscode
+plugin
+server/.venv
+server/__pycache__
+server/tests
+server/*.pdf
+server/*.csv
+**/__pycache__
+*.pyc

@@ -1,0 +1,22 @@
+services:
+  zotero-pdf2zh-next:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: zotero-pdf2zh-next:local
+    ports:
+      - "${PDF2ZH_PORT:-8890}:8890"
+    environment:
+      PDF2ZH_LOG_LEVEL: "${PDF2ZH_LOG_LEVEL:-INFO}"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from urllib.request import urlopen; urlopen('http://127.0.0.1:8890/health').read()",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3

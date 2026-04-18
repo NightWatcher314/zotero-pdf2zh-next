@@ -228,7 +228,7 @@
         <script>
             // <![CDATA[
             let api;
-            let refreshTimer = null;
+            let renderTimer = null;
 
             document.addEventListener("DOMContentLoaded", async () => {
                 api = window.arguments && window.arguments[0];
@@ -255,14 +255,11 @@
                     .addEventListener("click", () => window.close());
 
                 await refresh();
-                refreshTimer = setInterval(() => {
-                    void refresh();
-                }, 1000);
             });
 
             window.addEventListener("unload", () => {
-                if (refreshTimer) {
-                    clearInterval(refreshTimer);
+                if (renderTimer) {
+                    clearInterval(renderTimer);
                 }
             });
 
@@ -270,6 +267,23 @@
                 if (!api) return;
                 await api.refreshTasks();
                 render(api.getTasks());
+                syncRenderTimer();
+            }
+
+            function syncRenderTimer() {
+                if (!api) return;
+                const hasActiveTasks = api.hasActiveTasks();
+                if (hasActiveTasks && !renderTimer) {
+                    renderTimer = setInterval(() => {
+                        render(api.getTasks());
+                        syncRenderTimer();
+                    }, 1000);
+                    return;
+                }
+                if (!hasActiveTasks && renderTimer) {
+                    clearInterval(renderTimer);
+                    renderTimer = null;
+                }
             }
 
             function render(tasks) {

@@ -54,13 +54,18 @@ uv sync
 启动：
 
 ```bash
-cd server
-uv run server.py
+uv run --directory server zotero-pdf2zh-next
 ```
 
 默认监听地址：
 
 - `http://127.0.0.1:8890`
+
+可选参数：
+
+- `--host`: 默认 `127.0.0.1`
+- `--port`: 默认 `8890`
+- `--log-level`: 默认 `INFO`
 
 可选环境变量：
 
@@ -71,8 +76,67 @@ uv run server.py
 例如：
 
 ```bash
-cd server
-PDF2ZH_LOG_LEVEL=INFO uv run server.py
+uv run --directory server zotero-pdf2zh-next --host 0.0.0.0 --port 8890
+```
+
+或者：
+
+```bash
+PDF2ZH_LOG_LEVEL=INFO uv run --directory server zotero-pdf2zh-next
+```
+
+## Docker
+
+仓库根目录提供了：
+
+- `server/Dockerfile`
+- `compose.yaml`
+
+启动：
+
+```bash
+docker compose up --build -d
+```
+
+停止：
+
+```bash
+docker compose down
+```
+
+默认仍然监听：
+
+- `http://127.0.0.1:8890`
+
+如果要改宿主机端口：
+
+```bash
+PDF2ZH_PORT=8891 docker compose up --build -d
+```
+
+## Homebrew
+
+新的 formula 名称是：
+
+- `zotero-pdf2zh-next`
+
+安装：
+
+```bash
+brew tap NightWatcher314/homebrew-formula
+brew install zotero-pdf2zh-next
+```
+
+直接启动：
+
+```bash
+zotero-pdf2zh-next --host 127.0.0.1 --port 8890
+```
+
+作为后台服务启动：
+
+```bash
+brew services start zotero-pdf2zh-next
 ```
 
 ## Zotero 里怎么用

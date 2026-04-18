@@ -15,6 +15,7 @@ import {
 type TaskDialogArgs = {
     _initPromise: any;
     getTasks: () => PluginTask[];
+    hasActiveTasks: () => boolean;
     refreshTasks: () => Promise<void>;
     cancelTask: (taskId: string) => Promise<void>;
     deleteTask: (taskId: string) => Promise<void>;
@@ -112,6 +113,7 @@ export class PDF2zhTaskManager {
         const windowArgs: TaskDialogArgs = {
             _initPromise: Zotero.Promise.defer(),
             getTasks: () => this.getTasks(),
+            hasActiveTasks: () => this.hasActiveTasks(),
             refreshTasks: () => this.refreshTasks(),
             cancelTask: (taskId: string) => this.cancelTask(taskId),
             deleteTask: (taskId: string) => this.deleteTask(taskId),
@@ -146,6 +148,15 @@ export class PDF2zhTaskManager {
     static getTasks(): PluginTask[] {
         return Array.from(this.tasks.values()).sort((left, right) =>
             right.createdAt.localeCompare(left.createdAt),
+        );
+    }
+
+    static hasActiveTasks(): boolean {
+        return Array.from(this.tasks.values()).some(
+            (task) =>
+                ACTIVE_STATUSES.includes(task.status) ||
+                task.importState === "pending" ||
+                task.importState === "importing",
         );
     }
 
@@ -433,12 +444,7 @@ export class PDF2zhTaskManager {
     }
 
     private static ensurePolling() {
-        const hasActiveTasks = Array.from(this.tasks.values()).some(
-            (task) =>
-                ACTIVE_STATUSES.includes(task.status) ||
-                task.importState === "pending" ||
-                task.importState === "importing",
-        );
+        const hasActiveTasks = this.hasActiveTasks();
 
         if (!hasActiveTasks) {
             if (this.pollTimer != undefined) {

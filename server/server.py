@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import asyncio
 import base64
 import binascii
@@ -403,8 +404,10 @@ def parse_int(value: Any, default: int, minimum: int = 0) -> int:
 app = create_app()
 
 
-def configure_logging() -> None:
-    level_name = os.getenv("PDF2ZH_LOG_LEVEL", "INFO").upper()
+def configure_logging(level_name: str | None = None) -> None:
+    if level_name is None:
+        level_name = os.getenv("PDF2ZH_LOG_LEVEL", "INFO")
+    level_name = level_name.upper()
     level = getattr(logging, level_name, logging.INFO)
     logging.basicConfig(
         level=level,
@@ -412,9 +415,33 @@ def configure_logging() -> None:
     )
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the zotero-pdf2zh-next server")
+    parser.add_argument(
+        "--host",
+        default=os.getenv("PDF2ZH_HOST", "127.0.0.1"),
+        help="Server host, default: %(default)s",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=parse_int(os.getenv("PDF2ZH_PORT"), 8890, minimum=1),
+        help="Server port, default: %(default)s",
+    )
+    parser.add_argument(
+        "--log-level",
+        default=os.getenv("PDF2ZH_LOG_LEVEL", "INFO"),
+        help="Logging level, default: %(default)s",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    configure_logging(args.log_level)
+    LOGGER.info("server starting on http://%s:%s", args.host, args.port)
+    app.run(host=args.host, port=args.port)
+
+
 if __name__ == "__main__":
-    configure_logging()
-    host = os.getenv("PDF2ZH_HOST", "127.0.0.1")
-    port = parse_int(os.getenv("PDF2ZH_PORT"), 8890, minimum=1)
-    LOGGER.info("server starting on http://%s:%s", host, port)
-    app.run(host=host, port=port)
+    main()

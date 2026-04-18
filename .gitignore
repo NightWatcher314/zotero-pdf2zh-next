@@ -14,5 +14,6 @@ server/.venv/
 server/.pytest_cache/
 server/.mypy_cache/
 server/.coverage
+server/*.egg-info/
 server/*.pdf
 server/*.csv

@@ -1,5 +1,9 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "zotero-pdf2zh-server"
+name = "zotero-pdf2zh-next-server"
 version = "5.0.0"
 description = "Minimal pdf2zh_next bridge for the Zotero plugin"
 requires-python = ">=3.12"
@@ -8,3 +12,9 @@ dependencies = [
     "pdf2zh_next>=2.8.2",
     "pypdf>=6.0.0,<7",
 ]
+
+[project.scripts]
+zotero-pdf2zh-next = "server:main"
+
+[tool.setuptools]
+py-modules = ["server", "task_manager", "pdf2zh_next_service"]
