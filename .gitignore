@@ -1,25 +1,18 @@
-build
-logs
-node_modules
-pnpm-lock.yaml
-yarn.lock
 .DS_Store
 .env
-.scaffold
-.vscode
-.idea
+.idea/
+.scaffold/
+__pycache__/
+*.py[cod]
 
-server/config/config.json
-server/config/config.toml
-server/config/venv.json
-server/zotero-pdf2zh-next-venv
-server/zotero-pdf2zh-venv
-translated/*
-server/translated/*
-__pycache__
-ast.json
+logs/
 
-LOG.md
-_debug_progress.log
+plugin/node_modules/
+plugin/build/
 
-server/dev/
+server/.venv/
+server/.pytest_cache/
+server/.mypy_cache/
+server/.coverage
+server/*.pdf
+server/*.csv

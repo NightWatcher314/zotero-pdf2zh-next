@@ -9,64 +9,43 @@ on:
             - main
 
 jobs:
-    lint:
+    plugin:
         runs-on: ubuntu-latest
-        env:
-            GITHUB_TOKEN: ${{ secrets.GitHub_TOKEN }}
         steps:
             - name: Checkout
               uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
                   node-version: 20
-                  # 为 plugin/package-lock.json 启用缓存
-                  cache: 'npm'
-                  cache-dependency-path: plugin/package-lock.json
 
-            - name: Install deps
-              run: |
-                  cd plugin/ && npm install
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10
 
-            - name: Run Lint
-              run: |
-                  cd plugin/ && npm run lint:check
+            - name: Install plugin deps
+              run: pnpm install --frozen-lockfile
+              working-directory: plugin
 
-    build:
+            - name: Lint plugin
+              run: pnpm lint:check
+              working-directory: plugin
+
+            - name: Build plugin
+              run: pnpm build
+              working-directory: plugin
+
+    server:
         runs-on: ubuntu-latest
-        env:
-            GITHUB_TOKEN: ${{ secrets.GitHub_TOKEN }}
         steps:
             - name: Checkout
               uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
 
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: 20
-                  # 为 plugin/package-lock.json 启用缓存
-                  cache: 'npm'
-                  cache-dependency-path: plugin/package-lock.json
+            - name: Setup uv
+              uses: astral-sh/setup-uv@v6
 
-            - name: Install deps
-              run: |
-                  cd plugin/ && npm install
-
-            - name: Run Build
-              run: |
-                  cd plugin/ && npm run build
-
-            # ------------------- 这里是修改的部分 -------------------
-            - name: Upload build result
-              uses: actions/upload-artifact@v4
-              with:
-                  name: build-result
-                  # 'path' 参数需要的是文件路径，而不是命令
-                  # 假设构建产物在 plugin/build/ 目录下
-                  path: plugin/build
-            # ----------------------------------------------------
+            - name: Run server tests
+              run: uv run python -m unittest discover -s tests
+              working-directory: server

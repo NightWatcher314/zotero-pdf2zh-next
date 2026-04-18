@@ -343,8 +343,8 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
             // <![CDATA[
             // 1. 预设配置
             const DEFAULT_SERVICES = {
-                openailiked: {
-                    name: "OpenAI-Liked",
+                openaicompatible: {
+                    name: "OpenAICompatible",
                     models: [
                         // deepseek
                         "deepseek-v3-2-251201",
@@ -392,7 +392,7 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
                     urls: ["https://api.openai.com/v1"],
                     modelListUrl: "https://platform.openai.com/docs/models",
                 },
-                AliyunDashScope: {
+                aliyundashscope: {
                     name: "AliyunDashScope",
                     models: [
                         "qwen3.5-plus",
@@ -406,7 +406,7 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
                     ],
                     urls: ["https://dashscope.aliyuncs.com/compatible-mode/v1"],
                 },
-                silicon: {
+                siliconflow: {
                     name: "SiliconFlow",
                     models: [
                         "deepseek-ai/DeepSeek-V3.2",
@@ -432,8 +432,8 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
                         "gemini-2.5-pro",
                     ],
                 },
-                "azure-openai": {
-                    name: "Azure OpenAI",
+                azureopenai: {
+                    name: "AzureOpenAI",
                     models: [
                         "gpt-5",
                         "gpt-5-mini",
@@ -460,8 +460,8 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
                     urls: ["https://api.deepseek.com/v1"],
                     modelListUrl: "https://platform.deepseek.com/",
                 },
-                "qwen-mt": {
-                    name: "Qwen",
+                qwenmt: {
+                    name: "QwenMt",
                     models: [
                         "qwen-plus-latest",
                         "qwen-max",
@@ -484,7 +484,7 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
                     ],
                     urls: ["https://api.modelscope.com/v1"],
                 },
-                tencent: {
+                tencentmechinetranslation: {
                     name: "TencentMechineTranslation",
                     urls: ["https://tencent.com"],
                 },
@@ -500,6 +500,9 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
                 deepl: {
                     name: "DeepL",
                 },
+                siliconflowfree: {
+                    name: "SiliconFlow Free",
+                },
                 claudecode: {
                     name: "Claude Code",
                     models: ["sonnet"],
@@ -510,7 +513,7 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
             let mergedServices = {};
             let currentData = {};
             let isEditMode = false;
-            const HISTORY_PREF_KEY = "extensions.pdf2zh.llm.history";
+            const HISTORY_PREF_KEY = "extensions.zotero.__addonRef__.llm.history";
             var Services, Zotero;
 
             document.addEventListener("DOMContentLoaded", function () {

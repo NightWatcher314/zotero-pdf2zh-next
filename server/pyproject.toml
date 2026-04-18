@@ -1,0 +1,10 @@
+[project]
+name = "zotero-pdf2zh-server"
+version = "5.0.0"
+description = "Minimal pdf2zh_next bridge for the Zotero plugin"
+requires-python = ">=3.12"
+dependencies = [
+    "flask>=3.1.0,<4",
+    "pdf2zh_next>=2.8.2",
+    "pypdf>=6.0.0,<7",
+]

@@ -1,23 +1,23 @@
 {
-    "name": "zotero-pdf2zh",
+    "name": "zotero-pdf2zh-next",
     "version": "4.0.3",
-    "description": "Zotero Pdf2zh",
+    "description": "Minimal Zotero bridge for pdf2zh_next",
     "config": {
-        "addonName": "Zotero Pdf2zh",
-        "addonID": "pdf2zh@guaguastandup.com",
-        "addonRef": "pdf2zh",
-        "addonInstance": "pdf2zh",
-        "prefsPrefix": "extensions.zotero.pdf2zh"
+        "addonName": "zotero-pdf2zh-next",
+        "addonID": "zotero-pdf2zh-next@nightwatcher.local",
+        "addonRef": "pdf2zhnext",
+        "addonInstance": "pdf2zhnext",
+        "prefsPrefix": "extensions.zotero.pdf2zhnext"
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/guaguastandup/zotero-pdf2zh.git"
+        "url": "git+https://github.com/NightWatcher314/zotero-pdf2zh-next.git"
     },
-    "author": "guaguastandup",
+    "author": "NightWatcher",
     "bugs": {
-        "url": "https://github.com/guaguastandup/zotero-pdf2zh/issues"
+        "url": "https://github.com/NightWatcher314/zotero-pdf2zh-next/issues"
     },
-    "homepage": "https://github.com/guaguastandup/zotero-pdf2zh#readme",
+    "homepage": "https://github.com/NightWatcher314/zotero-pdf2zh-next#readme",
     "license": "AGPL-3.0-or-later",
     "scripts": {
         "start": "zotero-plugin serve",
@@ -26,10 +26,10 @@
         "lint:fix": "prettier --write . && eslint . --fix",
         "release": "zotero-plugin release",
         "test": "echo \"Error: no test specified\" && exit 1",
-        "update-deps": "npm update --save"
+        "update-deps": "pnpm up --latest"
     },
     "dependencies": {
-        "zotero-plugin-toolkit": "^5.1.0-beta.10"
+        "zotero-plugin-toolkit": "5.1.0-beta.10"
     },
     "devDependencies": {
         "@eslint/js": "^9.22.0",

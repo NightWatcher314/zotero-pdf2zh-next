@@ -15,40 +15,29 @@ export class PDF2zhBasicFactory {
 export class PDF2zhUIFactory {
     static registerRightClickMenuItem() {
         const menuIcon = `chrome://${addon.data.config.addonRef}/content/icons/favicon@0.5x.svg`;
-        const MENU_ITEMS = [
-            {
-                id: "translate-pdf",
-                label: getString("prefs-menu-translate"),
-                command: "translatePDF",
-            },
-            {
-                id: "crop-pdf",
-                label: getString("prefs-menu-cut"),
-                command: "cropPDF",
-            },
-            {
-                id: "compare-pdf",
-                label: getString("prefs-menu-compare"),
-                command: "comparePDF",
-            },
-            {
-                id: "crop-compare-pdf",
-                label: getString("prefs-menu-crop-compare"),
-                command: "crop-comparePDF",
-            },
-        ];
+        const menuPrefix = `zotero-itemmenu-${addon.data.config.addonRef}`;
         const pdf2zhMenu: MenuitemOptions = {
             tag: "menu",
-            id: "zotero-itemmenu-pdf2zh",
+            id: menuPrefix,
             icon: menuIcon,
-            label: `PDF2zh`,
-            children: MENU_ITEMS.map(({ id, label, command }) => ({
-                tag: "menuitem",
-                id: `zotero-itemmenu-${id}`,
-                label: `PDF2zh: ${label}`,
-                commandListener: () => addon.hooks.onDialogEvents(command),
-                icon: menuIcon,
-            })),
+            label: "zotero-pdf2zh-next",
+            children: [
+                {
+                    tag: "menuitem",
+                    id: `${menuPrefix}-translate-pdf`,
+                    label: `zotero-pdf2zh-next: ${getString("prefs-menu-translate")}`,
+                    commandListener: () => addon.hooks.onDialogEvents("translatePDF"),
+                    icon: menuIcon,
+                },
+                {
+                    tag: "menuitem",
+                    id: `${menuPrefix}-task-manager`,
+                    label: `zotero-pdf2zh-next: ${getString("prefs-menu-tasks")}`,
+                    commandListener: () =>
+                        addon.hooks.onDialogEvents("openTaskManager"),
+                    icon: menuIcon,
+                },
+            ],
         };
         ztoolkit.Menu.register("item", pdf2zhMenu);
     }

@@ -1,0 +1,448 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+<?xml-stylesheet href="chrome://zotero/skin/zotero.css" type="text/css"?>
+<!DOCTYPE html>
+<html
+    id="zotero-prefpane-__addonRef__-taskManager"
+    lang="zh-CN"
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:html="http://www.w3.org/1999/xhtml"
+    windowtype="zotero-prefpane-__addonRef__-taskManager"
+    sizemode="normal"
+    scrolling="true"
+>
+    <head>
+        <title>zotero-pdf2zh-next 任务列表</title>
+        <meta charset="utf-8" />
+        <style>
+            body {
+                margin: 0;
+                padding: 20px;
+                background: #f4f4f3;
+                color: #222;
+                font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                    "Segoe UI", sans-serif;
+            }
+
+            .page {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .toolbar {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .title {
+                font-size: 20px;
+                font-weight: 700;
+            }
+
+            .subtitle {
+                color: #666;
+                font-size: 12px;
+            }
+
+            .toolbar-actions {
+                display: flex;
+                gap: 8px;
+            }
+
+            .button {
+                border: 1px solid #d0d0cd;
+                background: #fff;
+                color: #222;
+                border-radius: 8px;
+                padding: 8px 12px;
+                cursor: pointer;
+                font: inherit;
+            }
+
+            .button.danger {
+                border-color: #efb1b1;
+                color: #a52a2a;
+                background: #fff7f7;
+            }
+
+            .list {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .card {
+                background: #fff;
+                border: 1px solid #dfdfdb;
+                border-radius: 12px;
+                padding: 14px 16px;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+            }
+
+            .card-header {
+                display: flex;
+                justify-content: space-between;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .name {
+                font-weight: 700;
+                word-break: break-word;
+            }
+
+            .meta {
+                color: #666;
+                font-size: 12px;
+                margin-top: 2px;
+            }
+
+            .status {
+                padding: 3px 8px;
+                border-radius: 999px;
+                font-size: 12px;
+                background: #ececeb;
+                white-space: nowrap;
+            }
+
+            .status.running {
+                background: #e7f1ff;
+                color: #1c5fb8;
+            }
+
+            .status.cancelling {
+                background: #fff0cf;
+                color: #8a5b00;
+            }
+
+            .status.completed {
+                background: #e8f7eb;
+                color: #216e39;
+            }
+
+            .status.failed,
+            .status.cancelled {
+                background: #fdecec;
+                color: #af2b2b;
+            }
+
+            .grid {
+                margin-top: 12px;
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .metric-label {
+                color: #666;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+            }
+
+            .metric-value {
+                margin-top: 2px;
+                font-weight: 600;
+                word-break: break-word;
+            }
+
+            .progress {
+                margin-top: 12px;
+            }
+
+            .progress-track {
+                height: 10px;
+                border-radius: 999px;
+                background: #ececeb;
+                overflow: hidden;
+            }
+
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #2b7fff, #00a8a8);
+                border-radius: 999px;
+            }
+
+            .progress-meta {
+                margin-top: 6px;
+                display: flex;
+                justify-content: space-between;
+                gap: 12px;
+                font-size: 12px;
+                color: #555;
+            }
+
+            .error {
+                margin-top: 10px;
+                color: #a52a2a;
+                font-size: 12px;
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+
+            .actions {
+                margin-top: 12px;
+                display: flex;
+                justify-content: flex-end;
+            }
+
+            .empty {
+                border: 1px dashed #ccccca;
+                border-radius: 12px;
+                padding: 28px;
+                text-align: center;
+                color: #666;
+                background: rgba(255, 255, 255, 0.5);
+            }
+
+            @media (max-width: 900px) {
+                .grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="page">
+            <div class="toolbar">
+                <div>
+                    <div class="title">zotero-pdf2zh-next 任务列表</div>
+                    <div class="subtitle">
+                        显示当前翻译任务、阶段进度与附件导入状态
+                    </div>
+                </div>
+                <div class="toolbar-actions">
+                    <button id="clear-failed-btn" class="button danger">
+                        清理失败任务
+                    </button>
+                    <button id="refresh-btn" class="button">刷新</button>
+                    <button id="close-btn" class="button">关闭</button>
+                </div>
+            </div>
+            <div id="task-list" class="list"></div>
+        </div>
+
+        <script>
+            // <![CDATA[
+            let api;
+            let refreshTimer = null;
+
+            document.addEventListener("DOMContentLoaded", async () => {
+                api = window.arguments && window.arguments[0];
+                if (api && api._initPromise) {
+                    api._initPromise.resolve();
+                }
+
+                document
+                    .getElementById("clear-failed-btn")
+                    .addEventListener("click", async () => {
+                        try {
+                            await api.clearFailedTasks();
+                            render(api.getTasks());
+                            void refresh();
+                        } catch (error) {
+                            alert(String(error));
+                        }
+                    });
+                document
+                    .getElementById("refresh-btn")
+                    .addEventListener("click", () => void refresh());
+                document
+                    .getElementById("close-btn")
+                    .addEventListener("click", () => window.close());
+
+                await refresh();
+                refreshTimer = setInterval(() => {
+                    void refresh();
+                }, 1000);
+            });
+
+            window.addEventListener("unload", () => {
+                if (refreshTimer) {
+                    clearInterval(refreshTimer);
+                }
+            });
+
+            async function refresh() {
+                if (!api) return;
+                await api.refreshTasks();
+                render(api.getTasks());
+            }
+
+            function render(tasks) {
+                const root = document.getElementById("task-list");
+                root.innerHTML = "";
+
+                if (!tasks || tasks.length === 0) {
+                    const empty = document.createElement("div");
+                    empty.className = "empty";
+                    empty.textContent = "当前没有任务。";
+                    root.appendChild(empty);
+                    return;
+                }
+
+                tasks.forEach((task) => {
+                    const card = document.createElement("div");
+                    card.className = "card";
+
+                    const header = document.createElement("div");
+                    header.className = "card-header";
+
+                    const titleWrap = document.createElement("div");
+                    const name = document.createElement("div");
+                    name.className = "name";
+                    name.textContent = task.fileName;
+                    const meta = document.createElement("div");
+                    meta.className = "meta";
+                    meta.textContent = `${task.service} | ${task.outputModes.join(", ")} | ${task.source === "local" ? "本地提交" : "远端任务"}`;
+                    titleWrap.appendChild(name);
+                    titleWrap.appendChild(meta);
+
+                    const status = document.createElement("div");
+                    status.className = `status ${task.status}`;
+                    status.textContent = formatStatus(task);
+
+                    header.appendChild(titleWrap);
+                    header.appendChild(status);
+                    card.appendChild(header);
+
+                    const grid = document.createElement("div");
+                    grid.className = "grid";
+                    [
+                        ["阶段", task.stage || "等待中"],
+                        [
+                            "阶段进度",
+                            `${Math.round(task.stageProgress || 0)}% (${task.stageCurrent || 0}/${task.stageTotal || 0})`,
+                        ],
+                        ["总进度", `${Math.round(task.overallProgress || 0)}%`],
+                        ["导入状态", formatImportState(task)],
+                    ].forEach(([label, value]) => {
+                        const box = document.createElement("div");
+                        const labelEl = document.createElement("div");
+                        labelEl.className = "metric-label";
+                        labelEl.textContent = label;
+                        const valueEl = document.createElement("div");
+                        valueEl.className = "metric-value";
+                        valueEl.textContent = value;
+                        box.appendChild(labelEl);
+                        box.appendChild(valueEl);
+                        grid.appendChild(box);
+                    });
+                    card.appendChild(grid);
+
+                    const progress = document.createElement("div");
+                    progress.className = "progress";
+                    const track = document.createElement("div");
+                    track.className = "progress-track";
+                    const fill = document.createElement("div");
+                    fill.className = "progress-fill";
+                    fill.style.width = `${Math.max(0, Math.min(task.overallProgress || 0, 100))}%`;
+                    track.appendChild(fill);
+                    progress.appendChild(track);
+
+                    const metaRow = document.createElement("div");
+                    metaRow.className = "progress-meta";
+                    metaRow.innerHTML = `<span>创建于 ${formatDate(task.createdAt)}</span><span>更新于 ${formatDate(task.updatedAt)}</span>`;
+                    progress.appendChild(metaRow);
+                    card.appendChild(progress);
+
+                    if (task.error || task.importError) {
+                        const error = document.createElement("div");
+                        error.className = "error";
+                        error.textContent = task.importError || task.error;
+                        card.appendChild(error);
+                    }
+
+                    if (task.canCancel || canDelete(task)) {
+                        const actions = document.createElement("div");
+                        actions.className = "actions";
+                        if (task.canCancel) {
+                            const cancelButton = document.createElement("button");
+                            cancelButton.className = "button danger";
+                            cancelButton.textContent = "终止任务";
+                            cancelButton.addEventListener("click", async () => {
+                                cancelButton.disabled = true;
+                                try {
+                                    await api.cancelTask(task.taskId);
+                                    await refresh();
+                                } catch (error) {
+                                    alert(String(error));
+                                    cancelButton.disabled = false;
+                                }
+                            });
+                            actions.appendChild(cancelButton);
+                        }
+                        if (canDelete(task)) {
+                            const deleteButton = document.createElement("button");
+                            deleteButton.className = "button";
+                            deleteButton.textContent = "删除记录";
+                            deleteButton.style.marginLeft = "8px";
+                            deleteButton.addEventListener("click", async () => {
+                                deleteButton.disabled = true;
+                                try {
+                                    await api.deleteTask(task.taskId);
+                                    render(api.getTasks());
+                                    void refresh();
+                                } catch (error) {
+                                    alert(String(error));
+                                    deleteButton.disabled = false;
+                                }
+                            });
+                            actions.appendChild(deleteButton);
+                        }
+                        card.appendChild(actions);
+                    }
+
+                    root.appendChild(card);
+                });
+            }
+
+            function formatStatus(task) {
+                const mapping = {
+                    queued: "排队中",
+                    running: "运行中",
+                    cancelling: "正在终止",
+                    completed: "已完成",
+                    failed: "失败",
+                    cancelled: "已终止",
+                };
+                return mapping[task.status] || task.status;
+            }
+
+            function formatImportState(task) {
+                const mapping = {
+                    none: "无",
+                    pending: "等待导入",
+                    importing: "导入中",
+                    imported: "已导入",
+                    failed: "导入失败",
+                };
+                return mapping[task.importState] || task.importState || "无";
+            }
+
+            function canDelete(task) {
+                if (task.status === "failed" || task.status === "cancelled") {
+                    return true;
+                }
+                return (
+                    task.status === "completed" &&
+                    task.importState !== "pending" &&
+                    task.importState !== "importing"
+                );
+            }
+
+            function formatDate(value) {
+                if (!value) return "-";
+                try {
+                    return new Date(value).toLocaleString();
+                } catch (_error) {
+                    return value;
+                }
+            }
+            // ]]>
+        </script>
+    </body>
+</html>

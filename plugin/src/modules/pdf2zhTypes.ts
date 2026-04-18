@@ -1,59 +1,55 @@
-export enum PDFType {
-    MONO = "mono",
-    DUAL = "dual",
-    MONO_CUT = "mono-cut",
-    DUAL_CUT = "dual-cut",
-    CROP_COMPARE = "crop-compare",
-    COMPARE = "compare",
-    ORIGIN_CUT = "origin-cut",
-    ORIGIN = "origin",
-    UNKNOWN = "unknown",
-}
+export type OutputMode = "mono" | "dual";
+export type ServerTaskStatus =
+    | "queued"
+    | "running"
+    | "cancelling"
+    | "completed"
+    | "failed"
+    | "cancelled";
 
 export interface ServerConfig {
     serverUrl: string;
-    threadNum: string;
-    qps: string;
-    poolSize: string;
-    engine: string;
     service: string;
-    next_service: string;
-
-    skipLastPages: string;
     sourceLang: string;
     targetLang: string;
-    // generate
-    mono: string;
-    mono_cut: string;
-    dual: string;
-    dual_cut: string;
-    crop_compare: string;
-    compare: string;
-
-    // pdf1x专用配置
-    babeldoc: string;
-    skipSubsetFonts: string;
-    fontFile: string;
-
-    // pdf2x专用配置
+    outputModes: OutputMode[];
+    skipLastPages: string;
+    qps: string;
+    poolSize: string;
     ocr: string;
     autoOcr: string;
-    transFirst: string;
     noWatermark: string;
     fontFamily: string;
-    dualMode: string;
-    saveGlossary: string;
-    disableGlossary: string;
-    noDual: string;
-    noMono: string;
-    skipClean: string;
-    disableRichTextTranslate: string;
-    enhanceCompatibility: string;
-    translateTableText: string;
-    onlyIncludeTranslatedPage: string;
 }
 
 export interface PDFOperationOptions {
     rename: boolean;
     openAfterProcess: boolean;
+}
+
+export interface ServerTaskSnapshot {
+    taskId: string;
+    fileName: string;
+    service: string;
+    outputModes: OutputMode[];
+    status: ServerTaskStatus;
+    stage: string | null;
+    stageCurrent: number;
+    stageTotal: number;
+    stageProgress: number;
+    overallProgress: number;
+    error: string | null;
+    resultFiles: Partial<Record<OutputMode, string>>;
+    createdAt: string;
+    updatedAt: string;
+    canCancel: boolean;
+    cancelRequested: boolean;
+}
+
+export interface PluginTask extends ServerTaskSnapshot {
+    itemID?: number;
+    serverUrl: string;
+    source: "local" | "remote";
+    importState: "pending" | "importing" | "imported" | "failed" | "none";
+    importError?: string;
 }
