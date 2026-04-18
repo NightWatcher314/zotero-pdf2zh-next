@@ -63,3 +63,15 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## Project Notes
+
+- This repo ships the server through multiple targets: local `uv`, Docker, and Homebrew.
+- When changing server packaging or startup behavior, also review:
+  - `server/pyproject.toml`
+  - `server/uv.lock`
+  - `server/Dockerfile`
+  - `compose.yaml`
+  - the Homebrew tap repo `NightWatcher314/homebrew-formula`, formula `Formula/zotero-pdf2zh-next.rb`
+- The Homebrew formula should stay aligned with the server CLI entrypoint and currently must pin `python@3.13` instead of unversioned `python`, because the `pdf2zh_next -> pydantic-core` dependency chain does not currently build correctly on Python 3.14.
+- Do not update only one distribution target if the change affects all startup/install paths.

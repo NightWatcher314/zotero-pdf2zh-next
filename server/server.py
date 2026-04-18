@@ -14,7 +14,7 @@ from typing import Any
 
 from flask import Flask, jsonify, request, send_file
 from pdf2zh_next_service import explain_service_error
-from pdf2zh_next_service import translate_pdf
+from pdf2zh_next_service import translate_pdf_with_callbacks
 from pdf2zh_next_service import validate_service_config
 from task_manager import TaskManager
 
@@ -221,7 +221,9 @@ def translate_pdf_request(data: dict[str, Any]) -> tuple[bytes, str, str]:
             prepared.service,
             ",".join(prepared.output_modes),
         )
-        result = asyncio.run(translate_pdf(prepared.request_payload, job_id))
+        result = asyncio.run(
+            translate_pdf_with_callbacks(prepared.request_payload, job_id)
+        )
         output_mode = prepared.output_modes[0]
         output_file = result.files[output_mode]
         return output_file.output_path.read_bytes(), output_file.filename, output_mode
@@ -306,11 +308,6 @@ def sanitize_pdf_filename(file_name: Any) -> str:
         sanitized += ".pdf"
     return sanitized
 
-
-def normalize_output_mode(data: dict[str, Any]) -> str:
-    return normalize_output_modes(data)[0]
-
-
 def normalize_output_modes(data: dict[str, Any]) -> list[str]:
     output_modes = data.get("outputModes")
     if output_modes is None:
@@ -335,13 +332,7 @@ def normalize_output_modes(data: dict[str, Any]) -> list[str]:
 
 
 def normalize_single_output_mode(data: dict[str, Any]) -> str:
-    output_mode = data.get("outputMode")
-    if not output_mode:
-        if parse_bool(data.get("mono"), False) and not parse_bool(data.get("dual"), True):
-            output_mode = "mono"
-        else:
-            output_mode = "dual"
-
+    output_mode = data.get("outputMode") or "dual"
     return normalize_output_mode_value(output_mode)
 
  

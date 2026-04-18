@@ -45,7 +45,6 @@ class TaskRecord:
     updated_at: str = field(default_factory=utc_now_iso)
     cancel_requested: bool = False
     cancel_callback: Callable[[], None] | None = field(default=None, repr=False)
-    thread: threading.Thread | None = field(default=None, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -113,7 +112,6 @@ class TaskManager:
             daemon=True,
             name=f"pdf2zh-task-{task_id}",
         )
-        record.thread = thread
         with self._lock:
             self._tasks[task_id] = record
         LOGGER.info(

@@ -345,11 +345,6 @@ def collect_output_files(
 
     return files
 
-
-async def translate_pdf(payload: dict[str, Any], job_id: str) -> TranslationResult:
-    return await translate_pdf_with_callbacks(payload, job_id)
-
-
 async def translate_pdf_with_callbacks(
     payload: dict[str, Any],
     job_id: str,
