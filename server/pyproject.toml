@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zotero-pdf2zh-next-server"
-version = "5.0.0"
+version = "5.0.1"
 description = "Minimal pdf2zh_next bridge for the Zotero plugin"
 requires-python = ">=3.12"
 dependencies = [

@@ -19,7 +19,7 @@ from pdf2zh_next_service import translate_pdf_with_callbacks
 from pdf2zh_next_service import validate_service_config
 from task_manager import TaskManager
 
-VERSION = "5.0.0"
+VERSION = "5.0.1"
 LOGGER = logging.getLogger("zotero_pdf2zh_server")
 TASK_MANAGER = TaskManager()
 TRANSLATES_DIR = Path(__file__).resolve().parent / "translates"
