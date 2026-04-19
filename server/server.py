@@ -6,7 +6,8 @@ import base64
 import binascii
 import logging
 import os
-import tempfile
+import shutil
+import uuid
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -21,6 +22,7 @@ from task_manager import TaskManager
 VERSION = "5.0.0"
 LOGGER = logging.getLogger("zotero_pdf2zh_server")
 TASK_MANAGER = TaskManager()
+TRANSLATES_DIR = Path(__file__).resolve().parent / "translates"
 
 
 class RequestValidationError(ValueError):
@@ -108,24 +110,24 @@ def create_app() -> Flask:
         if not isinstance(data, dict):
             return jsonify({"status": "error", "message": "Expected a JSON body"}), 400
 
-        temp_dir: tempfile.TemporaryDirectory[str] | None = None
+        task_id = uuid.uuid4().hex[:12]
+        workspace_dir: Path | None = None
         try:
-            temp_dir = tempfile.TemporaryDirectory(prefix="zotero-pdf2zh-next-task-")
-            prepared = prepare_translation_request(data, Path(temp_dir.name))
+            workspace_dir = create_workspace_dir(task_id)
+            prepared = prepare_translation_request(data, workspace_dir)
             task = TASK_MANAGER.create_task(
+                task_id=task_id,
                 file_name=prepared.file_name,
                 service=prepared.service,
                 output_modes=prepared.output_modes,
                 request_payload=prepared.request_payload,
-                temp_dir=temp_dir,
+                workspace_dir=workspace_dir,
             )
         except RequestValidationError as exc:
-            if temp_dir is not None:
-                temp_dir.cleanup()
+            remove_workspace_dir(workspace_dir)
             return jsonify({"status": "error", "message": str(exc)}), 400
         except Exception as exc:
-            if temp_dir is not None:
-                temp_dir.cleanup()
+            remove_workspace_dir(workspace_dir)
             return jsonify({"status": "error", "message": str(exc)}), 500
 
         return jsonify({"status": "ok", "task": task}), 202
@@ -206,14 +208,16 @@ def create_app() -> Flask:
 
 
 def translate_pdf_request(data: dict[str, Any]) -> tuple[bytes, str, str]:
-    with tempfile.TemporaryDirectory(prefix="zotero-pdf2zh-next-") as temp_dir:
-        prepared = prepare_translation_request(data, Path(temp_dir))
+    job_id = f"direct-{uuid.uuid4().hex[:12]}"
+    workspace_dir: Path | None = None
+    try:
+        workspace_dir = create_workspace_dir(job_id)
+        prepared = prepare_translation_request(data, workspace_dir)
         if len(prepared.output_modes) != 1:
             raise RequestValidationError(
                 "/translate accepts exactly one output mode; use /tasks for multiple outputs"
             )
 
-        job_id = os.urandom(4).hex()
         LOGGER.info(
             "[%s] accepted request: file=%s service=%s output_modes=%s",
             job_id,
@@ -227,6 +231,9 @@ def translate_pdf_request(data: dict[str, Any]) -> tuple[bytes, str, str]:
         output_mode = prepared.output_modes[0]
         output_file = result.files[output_mode]
         return output_file.output_path.read_bytes(), output_file.filename, output_mode
+    except Exception:
+        remove_workspace_dir(workspace_dir)
+        raise
 
 
 def validate_config_request(data: dict[str, Any]):
@@ -250,14 +257,14 @@ def validate_config_request(data: dict[str, Any]):
 
 def prepare_translation_request(
     data: dict[str, Any],
-    temp_path: Path,
+    workspace_dir: Path,
 ) -> PreparedTranslationRequest:
     file_bytes = decode_pdf_content(data.get("fileContent"))
     file_name = sanitize_pdf_filename(data.get("fileName"))
     service = normalize_service(data.get("service") or "siliconflowfree")
     output_modes = normalize_output_modes(data)
-    input_path = temp_path / file_name
-    output_dir = temp_path / "output"
+    input_path = workspace_dir / file_name
+    output_dir = workspace_dir / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
     input_path.write_bytes(file_bytes)
 
@@ -283,6 +290,20 @@ def prepare_translation_request(
         output_modes=output_modes,
         request_payload=request_payload,
     )
+
+
+def create_workspace_dir(job_id: str) -> Path:
+    TRANSLATES_DIR.mkdir(parents=True, exist_ok=True)
+    workspace_dir = TRANSLATES_DIR / job_id
+    workspace_dir.mkdir(parents=True, exist_ok=False)
+    LOGGER.info("[%s] workspace ready: %s", job_id, workspace_dir)
+    return workspace_dir
+
+
+def remove_workspace_dir(workspace_dir: Path | None) -> None:
+    if workspace_dir is None:
+        return
+    shutil.rmtree(workspace_dir, ignore_errors=True)
 
 
 def decode_pdf_content(file_content: Any) -> bytes:

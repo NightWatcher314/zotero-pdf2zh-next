@@ -6,6 +6,8 @@ services:
     image: zotero-pdf2zh-next:local
     ports:
       - "${PDF2ZH_PORT:-8890}:8890"
+    volumes:
+      - ./server/translates:/app/server/translates
     environment:
       PDF2ZH_LOG_LEVEL: "${PDF2ZH_LOG_LEVEL:-INFO}"
     restart: unless-stopped

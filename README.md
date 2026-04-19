@@ -9,6 +9,10 @@
 
 这是一个基于上游 `guaguastandup/zotero-pdf2zh` 演化出来的精简 fork，当前维护者为 `NightWatcher`。
 
+当前统一版本：
+
+- `5.0.0`
+
 ## 环境要求
 
 - Zotero 7
@@ -60,6 +64,10 @@ uv run --directory server zotero-pdf2zh-next
 默认监听地址：
 
 - `http://127.0.0.1:8890`
+
+翻译任务的工作目录和产物统一写到：
+
+- `server/translates/<task-id>/`
 
 可选参数：
 

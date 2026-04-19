@@ -17,3 +17,5 @@ server/.coverage
 server/*.egg-info/
 server/*.pdf
 server/*.csv
+server/translates/*
+!server/translates/.gitkeep

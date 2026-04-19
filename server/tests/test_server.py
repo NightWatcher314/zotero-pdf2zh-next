@@ -203,6 +203,40 @@ class ServerRouteTests(unittest.TestCase):
         self.assertEqual(response.json["service"], "openai")
         self.assertEqual(response.json["model"], "gpt-4.1")
 
+    def test_prepare_translation_request_uses_workspace_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_dir = Path(temp_dir)
+            prepared = server_module.prepare_translation_request(
+                {
+                    "fileName": "paper.pdf",
+                    "fileContent": build_pdf_payload(),
+                    "outputModes": ["mono", "dual"],
+                    "service": "openai",
+                },
+                workspace_dir,
+            )
+
+            self.assertEqual(prepared.file_name, "paper.pdf")
+            self.assertEqual(prepared.output_modes, ["mono", "dual"])
+            self.assertEqual(
+                Path(prepared.request_payload["input_path"]),
+                workspace_dir / "paper.pdf",
+            )
+            self.assertEqual(
+                Path(prepared.request_payload["output_dir"]),
+                workspace_dir / "output",
+            )
+            self.assertTrue((workspace_dir / "paper.pdf").exists())
+            self.assertTrue((workspace_dir / "output").is_dir())
+
+    def test_create_workspace_dir_uses_translates_folder(self) -> None:
+        workspace_dir = server_module.create_workspace_dir("test-job")
+        try:
+            self.assertEqual(workspace_dir, server_module.TRANSLATES_DIR / "test-job")
+            self.assertTrue(workspace_dir.is_dir())
+        finally:
+            server_module.remove_workspace_dir(workspace_dir)
+
     def test_task_result_returns_pdf_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output_path = Path(temp_dir) / "paper.dual.pdf"

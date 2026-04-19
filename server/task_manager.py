@@ -2,18 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shutil
 import threading
-import uuid
 from dataclasses import dataclass, field
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any
 from typing import Callable
 
 from pdf2zh_next_service import TranslationOutputFile
-from pdf2zh_next_service import TranslationResult
 from pdf2zh_next_service import explain_service_error
 from pdf2zh_next_service import translate_pdf_with_callbacks
 
@@ -32,7 +30,7 @@ class TaskRecord:
     service: str
     output_modes: list[str]
     request_payload: dict[str, Any]
-    temp_dir: TemporaryDirectory[str]
+    workspace_dir: Path
     status: TaskStatus = "queued"
     stage: str | None = None
     stage_current: int = 0
@@ -91,20 +89,20 @@ class TaskManager:
     def create_task(
         self,
         *,
+        task_id: str,
         file_name: str,
         service: str,
         output_modes: list[str],
         request_payload: dict[str, Any],
-        temp_dir: TemporaryDirectory[str],
+        workspace_dir: Path,
     ) -> dict[str, Any]:
-        task_id = uuid.uuid4().hex[:12]
         record = TaskRecord(
             task_id=task_id,
             file_name=file_name,
             service=service,
             output_modes=output_modes,
             request_payload=request_payload,
-            temp_dir=temp_dir,
+            workspace_dir=workspace_dir,
         )
         thread = threading.Thread(
             target=self._run_task,
@@ -115,11 +113,12 @@ class TaskManager:
         with self._lock:
             self._tasks[task_id] = record
         LOGGER.info(
-            "[%s] task queued: file=%s service=%s output_modes=%s",
+            "[%s] task queued: file=%s service=%s output_modes=%s workspace=%s",
             task_id,
             file_name,
             service,
             ",".join(output_modes),
+            workspace_dir,
         )
         thread.start()
         return record.to_dict()
@@ -152,7 +151,7 @@ class TaskManager:
                 raise ValueError("Active task cannot be deleted")
             deleted = self._tasks.pop(task_id)
 
-        deleted.temp_dir.cleanup()
+        shutil.rmtree(deleted.workspace_dir, ignore_errors=True)
         LOGGER.info("[%s] task deleted", task_id)
         return deleted.to_dict()
 
@@ -166,7 +165,7 @@ class TaskManager:
             deleted_records = [self._tasks.pop(task_id) for task_id in failed_task_ids]
 
         for record in deleted_records:
-            record.temp_dir.cleanup()
+            shutil.rmtree(record.workspace_dir, ignore_errors=True)
 
         if failed_task_ids:
             LOGGER.info("cleared failed tasks: %s", ",".join(failed_task_ids))
@@ -296,9 +295,9 @@ class TaskManager:
             record.stage = "cancelled" if cancelled else "failed"
             record.error = None if cancelled else error_message
             record.updated_at = utc_now_iso()
-            temp_dir = record.temp_dir
+            workspace_dir = record.workspace_dir
 
-        temp_dir.cleanup()
+        shutil.rmtree(workspace_dir, ignore_errors=True)
         if cancelled:
             LOGGER.info("[%s] task cancelled", task_id)
             return
