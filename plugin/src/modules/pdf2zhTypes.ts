@@ -39,6 +39,7 @@ export interface ServerTaskSnapshot {
     stageProgress: number;
     overallProgress: number;
     error: string | null;
+    attempt?: number;
     resultFiles: Partial<Record<OutputMode, string>>;
     createdAt: string;
     updatedAt: string;

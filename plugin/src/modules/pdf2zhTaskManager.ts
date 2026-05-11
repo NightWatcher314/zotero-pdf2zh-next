@@ -1,17 +1,16 @@
 import { config } from "../../package.json";
 import { getPref } from "../utils/prefs";
 import {
-    OutputMode,
     PluginTask,
     ServerConfig,
     ServerTaskEvent,
     ServerTaskSnapshot,
     ServerTaskStatus,
 } from "./pdf2zhTypes";
-import {
-    PDF2zhHelperFactory,
-    TaskOutputResponse,
-} from "./pdf2zhHelper";
+import { PDF2zhHelperFactory } from "./pdf2zhHelper";
+import { ServerTaskClient } from "./serverTaskClient";
+import { TaskEventStream } from "./taskEventStream";
+import { ZoteroTaskImporter } from "./zoteroTaskImporter";
 
 type TaskDialogArgs = {
     _initPromise: any;
@@ -21,20 +20,14 @@ type TaskDialogArgs = {
     refreshTasks: () => Promise<void>;
     cancelTask: (taskId: string) => Promise<void>;
     retryTask: (taskId: string) => Promise<void>;
+    retryFailedTasks: () => Promise<void>;
     deleteTask: (taskId: string) => Promise<void>;
     clearFailedTasks: () => Promise<void>;
-};
-
-type TaskListResponse = {
-    status?: string;
-    tasks?: ServerTaskSnapshot[];
-    message?: string;
-};
-
-type TaskCreateResponse = {
-    status?: string;
-    task?: ServerTaskSnapshot;
-    message?: string;
+    getEventStreamState: () => {
+        connected: number;
+        total: number;
+        hasErrors: boolean;
+    };
 };
 
 const ACTIVE_STATUSES: ServerTaskStatus[] = ["queued", "running", "cancelling"];
@@ -42,9 +35,18 @@ const ACTIVE_STATUSES: ServerTaskStatus[] = ["queued", "running", "cancelling"];
 export class PDF2zhTaskManager {
     private static tasks = new Map<string, PluginTask>();
     private static pollPromise: Promise<void> | null = null;
-    private static eventSources = new Map<string, EventSource>();
     private static taskListeners = new Set<() => void>();
     private static dialogWindow: Window | undefined;
+    private static eventStream = new TaskEventStream({
+        onTaskEvent: (serverUrl, event) =>
+            PDF2zhTaskManager.handleServerTaskEvent(serverUrl, event),
+        onStateChange: () => PDF2zhTaskManager.notifyTasksChanged(),
+    });
+    private static importer = new ZoteroTaskImporter({
+        getTask: (taskId) => PDF2zhTaskManager.tasks.get(taskId),
+        updateTask: (taskId, patch) =>
+            PDF2zhTaskManager.updateLocalTask(taskId, patch),
+    });
 
     static async processWorker() {
         const pane = ztoolkit.getGlobal("ZoteroPane");
@@ -123,8 +125,10 @@ export class PDF2zhTaskManager {
             refreshTasks: () => this.refreshTasks(),
             cancelTask: (taskId: string) => this.cancelTask(taskId),
             retryTask: (taskId: string) => this.retryTask(taskId),
+            retryFailedTasks: () => this.retryFailedTasks(),
             deleteTask: (taskId: string) => this.deleteTask(taskId),
             clearFailedTasks: () => this.clearFailedTasks(),
+            getEventStreamState: () => this.getEventStreamState(),
         };
 
         const dialogWindow = Zotero.getMainWindow().openDialog(
@@ -197,17 +201,12 @@ export class PDF2zhTaskManager {
             throw new Error("任务不存在");
         }
 
-        const response = await fetch(`${task.serverUrl}/tasks/${taskId}/cancel`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-        });
-        if (!response.ok) {
-            throw new Error(await this.readErrorMessage(response));
-        }
-
-        const result = (await response.json()) as { task?: ServerTaskSnapshot };
-        if (result.task) {
-            this.upsertTask(result.task, task.serverUrl, {
+        const snapshot = await ServerTaskClient.cancelTask(
+            task.serverUrl,
+            taskId,
+        );
+        if (snapshot) {
+            this.upsertTask(snapshot, task.serverUrl, {
                 itemID: task.itemID,
                 source: task.source,
                 importState: task.importState,
@@ -227,21 +226,16 @@ export class PDF2zhTaskManager {
                 importState: "pending",
                 importError: undefined,
             });
-            await this.importTaskOutputs(taskId);
+            await this.importer.importTaskOutputs(taskId);
             return;
         }
 
-        const response = await fetch(`${task.serverUrl}/tasks/${taskId}/retry`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-        });
-        if (!response.ok) {
-            throw new Error(await this.readErrorMessage(response));
-        }
-
-        const result = (await response.json()) as { task?: ServerTaskSnapshot };
-        if (result.task) {
-            this.upsertTask(result.task, task.serverUrl, {
+        const snapshot = await ServerTaskClient.retryTask(
+            task.serverUrl,
+            taskId,
+        );
+        if (snapshot) {
+            this.upsertTask(snapshot, task.serverUrl, {
                 itemID: task.itemID,
                 source: task.source,
                 importState: task.importState,
@@ -251,19 +245,24 @@ export class PDF2zhTaskManager {
         this.ensureEventStreams();
     }
 
+    static async retryFailedTasks(): Promise<void> {
+        const failedTasks = this.getTasks().filter(
+            (task) =>
+                task.status === "failed" ||
+                (task.status === "completed" && task.importState === "failed"),
+        );
+        for (const task of failedTasks) {
+            await this.retryTask(task.taskId);
+        }
+    }
+
     static async deleteTask(taskId: string): Promise<void> {
         const task = this.tasks.get(taskId);
         if (!task) {
             throw new Error("任务不存在");
         }
 
-        const response = await fetch(`${task.serverUrl}/tasks/${taskId}`, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-        });
-        if (!response.ok) {
-            throw new Error(await this.readErrorMessage(response));
-        }
+        await ServerTaskClient.deleteTask(task.serverUrl, taskId);
 
         this.tasks.delete(taskId);
         this.notifyTasksChanged();
@@ -271,20 +270,16 @@ export class PDF2zhTaskManager {
     }
 
     static async clearFailedTasks(): Promise<void> {
-        const failedTasks = this.getTasks().filter((task) => task.status === "failed");
+        const failedTasks = this.getTasks().filter(
+            (task) => task.status === "failed",
+        );
         if (failedTasks.length === 0) {
             return;
         }
 
         const serverUrls = new Set(failedTasks.map((task) => task.serverUrl));
         for (const serverUrl of serverUrls) {
-            const response = await fetch(`${serverUrl}/tasks/clear-failed`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-            });
-            if (!response.ok) {
-                throw new Error(await this.readErrorMessage(response));
-            }
+            await ServerTaskClient.clearFailedTasks(serverUrl);
 
             for (const task of failedTasks) {
                 if (task.serverUrl === serverUrl) {
@@ -297,6 +292,14 @@ export class PDF2zhTaskManager {
         this.ensureEventStreams();
     }
 
+    static getEventStreamState(): {
+        connected: number;
+        total: number;
+        hasErrors: boolean;
+    } {
+        return this.eventStream.getSummary();
+    }
+
     private static async submitTask(item: Zotero.Item, config: ServerConfig) {
         const fileData = await PDF2zhHelperFactory.prepareFileData(item);
         const requestBody = PDF2zhHelperFactory.buildTaskRequestBody(
@@ -304,24 +307,11 @@ export class PDF2zhTaskManager {
             config,
         );
 
-        const response = await PDF2zhHelperFactory.retryOperation(() =>
-            fetch(`${config.serverUrl}/tasks`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(requestBody),
-            }),
+        const task = await ServerTaskClient.createTask(
+            config.serverUrl,
+            requestBody,
         );
-
-        if (!response.ok) {
-            throw new Error(await this.readErrorMessage(response));
-        }
-
-        const result = (await response.json()) as TaskCreateResponse;
-        if (!result.task) {
-            throw new Error("服务器没有返回任务信息");
-        }
-
-        this.upsertTask(result.task, config.serverUrl, {
+        this.upsertTask(task, config.serverUrl, {
             itemID: item.id,
             source: "local",
             importState: "pending",
@@ -342,13 +332,15 @@ export class PDF2zhTaskManager {
         }
 
         for (const serverUrl of serverUrls) {
-            const response = await fetch(`${serverUrl}/tasks`);
-            if (!response.ok) {
+            let snapshots: ServerTaskSnapshot[];
+            try {
+                snapshots = await ServerTaskClient.listTasks(serverUrl);
+            } catch (_error) {
                 continue;
             }
-            const payload = (await response.json()) as TaskListResponse;
-            const snapshots = payload.tasks || [];
-            const serverTaskIds = new Set(snapshots.map((snapshot) => snapshot.taskId));
+            const serverTaskIds = new Set(
+                snapshots.map((snapshot) => snapshot.taskId),
+            );
             snapshots.forEach((snapshot) => {
                 const existing = this.tasks.get(snapshot.taskId);
                 this.upsertTask(snapshot, serverUrl, {
@@ -380,78 +372,8 @@ export class PDF2zhTaskManager {
                 task.status === "completed" &&
                 task.importState === "pending"
             ) {
-                await this.importTaskOutputs(task.taskId);
+                await this.importer.importTaskOutputs(task.taskId);
             }
-        }
-    }
-
-    private static async importTaskOutputs(taskId: string) {
-        const task = this.tasks.get(taskId);
-        if (!task || task.importState !== "pending") {
-            return;
-        }
-
-        if (!task.itemID) {
-            this.updateLocalTask(taskId, {
-                importState: "failed",
-                importError: "无法找到原始条目",
-            });
-            return;
-        }
-
-        const item = Zotero.Items.get(task.itemID);
-        if (!item) {
-            this.updateLocalTask(taskId, {
-                importState: "failed",
-                importError: "原始条目已不存在",
-            });
-            return;
-        }
-
-        this.updateLocalTask(taskId, {
-            importState: "importing",
-            importError: undefined,
-        });
-
-        try {
-            for (const outputMode of task.outputModes) {
-                const response = await fetch(
-                    `${task.serverUrl}/tasks/${task.taskId}/result?mode=${outputMode}`,
-                );
-                if (!response.ok) {
-                    throw new Error(await this.readErrorMessage(response));
-                }
-
-                const bytes = new Uint8Array(await response.arrayBuffer());
-                const fileName =
-                    task.resultFiles[outputMode] ||
-                    `${task.fileName}.${outputMode}.pdf`;
-                const output: TaskOutputResponse = {
-                    fileName,
-                    outputMode,
-                    bytes,
-                };
-                await PDF2zhHelperFactory.handleOutputResponse(
-                    output,
-                    item,
-                    {
-                        ...PDF2zhHelperFactory.getServerConfig(),
-                        service: task.service,
-                        outputModes: task.outputModes,
-                    },
-                );
-            }
-
-            this.updateLocalTask(taskId, {
-                importState: "imported",
-                importError: undefined,
-            });
-        } catch (error) {
-            this.updateLocalTask(taskId, {
-                importState: "failed",
-                importError:
-                    error instanceof Error ? error.message : String(error),
-            });
         }
     }
 
@@ -473,6 +395,7 @@ export class PDF2zhTaskManager {
             stageProgress: snapshot.stageProgress,
             overallProgress: snapshot.overallProgress,
             error: snapshot.error,
+            attempt: snapshot.attempt,
             resultFiles: snapshot.resultFiles,
             createdAt: snapshot.createdAt,
             updatedAt: snapshot.updatedAt,
@@ -510,8 +433,7 @@ export class PDF2zhTaskManager {
         const dialogOpen = Boolean(
             this.dialogWindow && !this.dialogWindow.closed,
         );
-        const shouldTrackCurrentServer =
-            dialogOpen || this.hasActiveTasks();
+        const shouldTrackCurrentServer = dialogOpen || this.hasActiveTasks();
         if (currentServerUrl && shouldTrackCurrentServer) {
             serverUrls.add(currentServerUrl);
         }
@@ -527,52 +449,17 @@ export class PDF2zhTaskManager {
             }
         }
 
-        for (const [serverUrl, source] of this.eventSources) {
-            if (!serverUrls.has(serverUrl)) {
-                source.close();
-                this.eventSources.delete(serverUrl);
-            }
-        }
-
-        for (const serverUrl of serverUrls) {
-            if (this.eventSources.has(serverUrl)) {
-                continue;
-            }
-            this.openEventStream(serverUrl);
-        }
+        this.eventStream.sync(serverUrls);
     }
 
-    private static openEventStream(serverUrl: string) {
-        const mainWindow = Zotero.getMainWindow() as Window & {
-            EventSource?: typeof EventSource;
-        };
-        const EventSourceConstructor =
-            typeof EventSource === "undefined"
-                ? mainWindow.EventSource
-                : EventSource;
-        if (!EventSourceConstructor) {
-            return;
-        }
-
-        const source = new EventSourceConstructor(`${serverUrl}/tasks/events`);
-        source.onmessage = (event) => {
-            this.handleServerTaskEvent(serverUrl, event.data);
-        };
-        source.onerror = () => {
-            ztoolkit.log(`任务进度事件连接异常: ${serverUrl}`);
-        };
-        this.eventSources.set(serverUrl, source);
-    }
-
-    private static handleServerTaskEvent(serverUrl: string, data: string) {
-        let event: ServerTaskEvent;
-        try {
-            event = JSON.parse(data) as ServerTaskEvent;
-        } catch (_error) {
-            return;
-        }
-
-        if ((event.type === "snapshot" || event.type === "task") && event.task) {
+    private static handleServerTaskEvent(
+        serverUrl: string,
+        event: ServerTaskEvent,
+    ) {
+        if (
+            (event.type === "snapshot" || event.type === "task") &&
+            event.task
+        ) {
             const existing = this.tasks.get(event.task.taskId);
             this.upsertTask(event.task, serverUrl, {
                 itemID: existing?.itemID,
@@ -598,18 +485,6 @@ export class PDF2zhTaskManager {
             } catch (error) {
                 ztoolkit.log(error);
             }
-        }
-    }
-
-    private static async readErrorMessage(response: Response): Promise<string> {
-        try {
-            const payload = (await response.json()) as {
-                message?: string;
-                status?: string;
-            };
-            return payload.message || `服务器返回错误: ${response.status}`;
-        } catch (_error) {
-            return `服务器返回错误: ${response.status}`;
         }
     }
 }

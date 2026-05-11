@@ -3,18 +3,25 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: scripts/release.sh <version> [--no-push] [--no-release]
+Usage: scripts/release.sh <version> [--no-push] [--no-release] [--tap-path <path>] [--no-tap]
 
 Build, validate, push, and publish a zotero-pdf2zh-next release.
 
 Examples:
   scripts/release.sh 5.1.0
   scripts/release.sh 5.1.1 --no-release
+  scripts/release.sh 5.1.1 --tap-path /Users/night/Documents/Codes/homebrew-formula
+  scripts/release.sh 5.1.1 --no-tap
 
 The script updates the shared plugin/server version, runs validation, commits
 the version bump, pushes main, creates the v<version> GitHub release with the
 XPI asset, and updates the fixed "release" GitHub release with update.json for
 Zotero's Check for Updates flow.
+
+Unless --no-push or --no-tap is set, the script also updates the Homebrew tap
+formula after the main repo push/release succeeds. The default tap path is
+../homebrew-formula when present, then /Users/night/Documents/Codes/homebrew-formula
+when present.
 EOF
 }
 
@@ -41,6 +48,8 @@ VERSION="$1"
 shift
 PUSH=1
 PUBLISH_RELEASE=1
+UPDATE_TAP=1
+TAP_PATH=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -50,6 +59,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-release)
             PUBLISH_RELEASE=0
+            ;;
+        --tap-path)
+            [[ $# -ge 2 ]] || die "--tap-path requires a path"
+            TAP_PATH="$2"
+            shift
+            ;;
+        --no-tap)
+            UPDATE_TAP=0
             ;;
         -h|--help)
             usage
@@ -71,6 +88,26 @@ done
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
+
+if [[ -z "$TAP_PATH" ]]; then
+    if [[ -d "$REPO_ROOT/../homebrew-formula/.git" ]]; then
+        TAP_PATH="$REPO_ROOT/../homebrew-formula"
+    elif [[ -d "/Users/night/Documents/Codes/homebrew-formula/.git" ]]; then
+        TAP_PATH="/Users/night/Documents/Codes/homebrew-formula"
+    fi
+fi
+
+if [[ "$UPDATE_TAP" -eq 1 && "$PUSH" -eq 1 ]]; then
+    [[ -n "$TAP_PATH" ]] || die "Homebrew tap path not found; use --tap-path <path> or --no-tap"
+    [[ -d "$TAP_PATH/.git" ]] || die "Homebrew tap path is not a git repo: $TAP_PATH"
+    [[ -f "$TAP_PATH/Formula/zotero-pdf2zh-next.rb" ]] ||
+        die "Homebrew formula not found: $TAP_PATH/Formula/zotero-pdf2zh-next.rb"
+    [[ -z "$(git -C "$TAP_PATH" status --porcelain)" ]] ||
+        die "Homebrew tap worktree is dirty; commit or stash changes first"
+    require_command curl
+    require_command shasum
+    require_command ruby
+fi
 
 BRANCH="$(git branch --show-current)"
 [[ "$BRANCH" == "main" ]] || die "release must run from main, current branch: $BRANCH"
@@ -151,6 +188,40 @@ EOF
             --title "Zotero update manifest" \
             --notes "Stable update manifest used by Zotero Check for Updates." \
             --latest=false
+    fi
+fi
+
+if [[ "$UPDATE_TAP" -eq 1 && "$PUSH" -eq 1 ]]; then
+    FORMULA_REL="Formula/zotero-pdf2zh-next.rb"
+    FORMULA="$TAP_PATH/$FORMULA_REL"
+    TARBALL_URL="https://github.com/NightWatcher314/zotero-pdf2zh-next/archive/$COMMIT.tar.gz"
+    SHA256="$(curl -LfsS "$TARBALL_URL" | shasum -a 256 | awk '{print $1}')"
+    [[ -n "$SHA256" ]] || die "failed to compute sha256 for $TARBALL_URL"
+
+    URL="$TARBALL_URL" VERSION="$VERSION" SHA256="$SHA256" perl -0pi -e '
+s/url "[^"]+"/url "$ENV{URL}"/;
+s/version "[^"]+"/version "$ENV{VERSION}"/;
+s/sha256 "[^"]+"/sha256 "$ENV{SHA256}"/;
+' "$FORMULA"
+
+    git -C "$TAP_PATH" diff -- "$FORMULA_REL"
+    ruby -c "$FORMULA"
+
+    git -C "$TAP_PATH" add "$FORMULA_REL"
+    if ! git -C "$TAP_PATH" diff --cached --quiet; then
+        git -C "$TAP_PATH" commit -m "chore: update zotero-pdf2zh-next to $TAG"
+        git -C "$TAP_PATH" push origin HEAD
+    fi
+
+    if command -v brew >/dev/null 2>&1; then
+        BREW_TAP_PATH="$(brew --repository nightwatcher314/formula 2>/dev/null || true)"
+        if [[ -n "$BREW_TAP_PATH" && -d "$BREW_TAP_PATH/.git" ]]; then
+            git -C "$BREW_TAP_PATH" pull --ff-only
+        fi
+        HOMEBREW_NO_AUTO_UPDATE=1 brew readall nightwatcher314/formula
+        HOMEBREW_NO_AUTO_UPDATE=1 brew install --formula --dry-run nightwatcher314/formula/zotero-pdf2zh-next
+    else
+        echo "Skipping Homebrew validation because brew is not installed" >&2
     fi
 fi
 

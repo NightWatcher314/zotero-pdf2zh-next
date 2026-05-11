@@ -23,8 +23,8 @@ from task_manager import TaskManager
 
 VERSION = "5.1.0"
 LOGGER = logging.getLogger("zotero_pdf2zh_server")
-TASK_MANAGER = TaskManager()
 TRANSLATES_DIR = Path(__file__).resolve().parent / "translates"
+TASK_MANAGER = TaskManager(TRANSLATES_DIR / "tasks.json")
 
 
 class RequestValidationError(ValueError):

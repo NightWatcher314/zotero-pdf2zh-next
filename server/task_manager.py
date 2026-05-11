@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import queue
 import shutil
@@ -40,6 +41,7 @@ class TaskRecord:
     overall_progress: float = 0.0
     error: str | None = None
     result_files: dict[str, TranslationOutputFile] = field(default_factory=dict)
+    attempt: int = 1
     created_at: str = field(default_factory=utc_now_iso)
     updated_at: str = field(default_factory=utc_now_iso)
     cancel_requested: bool = False
@@ -58,6 +60,7 @@ class TaskRecord:
             "stageProgress": round(self.stage_progress, 1),
             "overallProgress": round(self.overall_progress, 1),
             "error": self.error,
+            "attempt": self.attempt,
             "resultFiles": {
                 output_mode: output_file.filename
                 for output_mode, output_file in self.result_files.items()
@@ -70,10 +73,14 @@ class TaskRecord:
 
 
 class TaskManager:
-    def __init__(self) -> None:
+    def __init__(self, persistence_path: Path | str | None = None) -> None:
         self._lock = threading.RLock()
         self._tasks: dict[str, TaskRecord] = {}
         self._subscribers: set[queue.Queue[dict[str, Any]]] = set()
+        self._persistence_path = (
+            Path(persistence_path) if persistence_path is not None else None
+        )
+        self._load_persistent_tasks()
 
     def list_tasks(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -127,13 +134,16 @@ class TaskManager:
         return record.to_dict()
 
     def subscribe(self) -> queue.Queue[dict[str, Any]]:
-        event_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+        event_queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=128)
         with self._lock:
             self._subscribers.add(event_queue)
             records = list(self._tasks.values())
         records.sort(key=lambda record: record.created_at, reverse=True)
         for record in records:
-            event_queue.put({"type": "snapshot", "task": record.to_dict()})
+            self._enqueue_event(
+                event_queue,
+                {"type": "snapshot", "task": record.to_dict()},
+            )
         return event_queue
 
     def unsubscribe(self, event_queue: queue.Queue[dict[str, Any]]) -> None:
@@ -171,6 +181,7 @@ class TaskManager:
             deleted = self._tasks.pop(task_id)
 
         shutil.rmtree(deleted.workspace_dir, ignore_errors=True)
+        self._save_persistent_tasks()
         self._publish_event({"type": "deleted", "taskId": task_id})
         LOGGER.info("[%s] task deleted", task_id)
         return deleted.to_dict()
@@ -187,6 +198,7 @@ class TaskManager:
         for record in deleted_records:
             shutil.rmtree(record.workspace_dir, ignore_errors=True)
 
+        self._save_persistent_tasks()
         if failed_task_ids:
             LOGGER.info("cleared failed tasks: %s", ",".join(failed_task_ids))
         for task_id in failed_task_ids:
@@ -219,6 +231,7 @@ class TaskManager:
             record.overall_progress = 0.0
             record.error = None
             record.result_files = {}
+            record.attempt += 1
             record.cancel_requested = False
             record.cancel_callback = None
             record.updated_at = utc_now_iso()
@@ -231,6 +244,7 @@ class TaskManager:
                 name=f"pdf2zh-task-{task_id}-retry",
             )
 
+        self._save_persistent_tasks()
         self._publish_event({"type": "task", "task": snapshot})
         LOGGER.info("[%s] task retry queued", task_id)
         thread.start()
@@ -256,6 +270,8 @@ class TaskManager:
 
             result_file = record.result_files.get(selected_output_mode)
             if result_file is None:
+                return record, None
+            if not result_file.output_path.exists():
                 return record, None
             return record, result_file
 
@@ -296,6 +312,7 @@ class TaskManager:
             record.overall_progress = 100.0
             record.updated_at = utc_now_iso()
             snapshot = record.to_dict()
+        self._save_persistent_tasks()
         self._publish_event({"type": "task", "task": snapshot})
         LOGGER.info(
             "[%s] task completed: %s",
@@ -373,6 +390,7 @@ class TaskManager:
 
         if cancelled:
             shutil.rmtree(workspace_dir, ignore_errors=True)
+        self._save_persistent_tasks()
         self._publish_event({"type": "task", "task": snapshot})
         if cancelled:
             LOGGER.info("[%s] task cancelled", task_id)
@@ -383,7 +401,154 @@ class TaskManager:
         with self._lock:
             subscribers = list(self._subscribers)
         for event_queue in subscribers:
-            event_queue.put(event)
+            self._enqueue_event(event_queue, event)
+
+    @staticmethod
+    def _enqueue_event(
+        event_queue: queue.Queue[dict[str, Any]],
+        event: dict[str, Any],
+    ) -> None:
+        try:
+            event_queue.put_nowait(event)
+            return
+        except queue.Full:
+            pass
+
+        try:
+            event_queue.get_nowait()
+        except queue.Empty:
+            pass
+        try:
+            event_queue.put_nowait(event)
+        except queue.Full:
+            pass
+
+    def _load_persistent_tasks(self) -> None:
+        if self._persistence_path is None or not self._persistence_path.exists():
+            return
+
+        try:
+            payload = json.loads(self._persistence_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            LOGGER.warning("failed to load persisted tasks: %s", exc)
+            return
+
+        records = payload.get("tasks", []) if isinstance(payload, dict) else []
+        if not isinstance(records, list):
+            return
+
+        for record_payload in records:
+            if not isinstance(record_payload, dict):
+                continue
+            record = self._record_from_persistence(record_payload)
+            if record is None or record.status in {"queued", "running", "cancelling"}:
+                continue
+            self._tasks[record.task_id] = record
+
+    def _save_persistent_tasks(self) -> None:
+        if self._persistence_path is None:
+            return
+
+        with self._lock:
+            records = [
+                self._record_to_persistence(record)
+                for record in self._tasks.values()
+                if record.status not in {"queued", "running", "cancelling"}
+            ]
+
+        payload = {"tasks": records}
+        try:
+            self._persistence_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_path = self._persistence_path.with_suffix(
+                self._persistence_path.suffix + ".tmp"
+            )
+            temp_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            temp_path.replace(self._persistence_path)
+        except OSError as exc:
+            LOGGER.warning("failed to save persisted tasks: %s", exc)
+
+    @staticmethod
+    def _record_to_persistence(record: TaskRecord) -> dict[str, Any]:
+        return {
+            "task_id": record.task_id,
+            "file_name": record.file_name,
+            "service": record.service,
+            "output_modes": record.output_modes,
+            "request_payload": record.request_payload,
+            "workspace_dir": str(record.workspace_dir),
+            "status": record.status,
+            "stage": record.stage,
+            "stage_current": record.stage_current,
+            "stage_total": record.stage_total,
+            "stage_progress": record.stage_progress,
+            "overall_progress": record.overall_progress,
+            "error": record.error,
+            "attempt": record.attempt,
+            "created_at": record.created_at,
+            "updated_at": record.updated_at,
+            "cancel_requested": record.cancel_requested,
+            "result_files": {
+                output_mode: {
+                    "output_mode": output_file.output_mode,
+                    "output_path": str(output_file.output_path),
+                    "filename": output_file.filename,
+                }
+                for output_mode, output_file in record.result_files.items()
+            },
+        }
+
+    @staticmethod
+    def _record_from_persistence(payload: dict[str, Any]) -> TaskRecord | None:
+        try:
+            result_files_payload = payload.get("result_files", {})
+            result_files = {}
+            if isinstance(result_files_payload, dict):
+                for output_mode, output_payload in result_files_payload.items():
+                    if not isinstance(output_payload, dict):
+                        continue
+                    output_path = output_payload.get("output_path")
+                    filename = output_payload.get("filename")
+                    if not output_path or not filename:
+                        continue
+                    result_files[str(output_mode)] = TranslationOutputFile(
+                        output_mode=str(
+                            output_payload.get("output_mode") or output_mode
+                        ),
+                        output_path=Path(output_path),
+                        filename=str(filename),
+                    )
+
+            return TaskRecord(
+                task_id=str(payload["task_id"]),
+                file_name=str(payload["file_name"]),
+                service=str(payload["service"]),
+                output_modes=list(payload.get("output_modes", [])),
+                request_payload=dict(payload.get("request_payload", {})),
+                workspace_dir=Path(payload["workspace_dir"]),
+                status=str(payload.get("status", "failed")),
+                stage=payload.get("stage"),
+                stage_current=TaskManager._coerce_int(payload.get("stage_current"), 0),
+                stage_total=TaskManager._coerce_int(payload.get("stage_total"), 0),
+                stage_progress=TaskManager._coerce_float(
+                    payload.get("stage_progress"),
+                    0.0,
+                ),
+                overall_progress=TaskManager._coerce_float(
+                    payload.get("overall_progress"),
+                    0.0,
+                ),
+                error=payload.get("error"),
+                result_files=result_files,
+                attempt=TaskManager._coerce_int(payload.get("attempt"), 1),
+                created_at=str(payload.get("created_at") or utc_now_iso()),
+                updated_at=str(payload.get("updated_at") or utc_now_iso()),
+                cancel_requested=bool(payload.get("cancel_requested", False)),
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
 
     @staticmethod
     def _coerce_int(value: Any, default: int) -> int:

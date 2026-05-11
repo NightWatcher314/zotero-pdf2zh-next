@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
-<?xml-stylesheet href="chrome://zotero/skin/zotero.css" type="text/css"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?> <?xml-stylesheet
+href="chrome://zotero/skin/zotero.css" type="text/css"?>
 <!DOCTYPE html>
 <html
     id="zotero-prefpane-__addonRef__-taskManager"
@@ -17,92 +17,231 @@
         <style>
             body {
                 margin: 0;
-                padding: 20px;
-                background: #f4f4f3;
-                color: #222;
-                font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text",
-                    "Segoe UI", sans-serif;
+                padding: 14px;
+                background: #ececea;
+                color: #1f2328;
+                font:
+                    13px/1.4 -apple-system,
+                    BlinkMacSystemFont,
+                    "SF Pro Text",
+                    "Segoe UI",
+                    sans-serif;
             }
 
             .page {
                 display: flex;
                 flex-direction: column;
-                gap: 16px;
+                gap: 10px;
+                min-width: 760px;
             }
 
             .toolbar {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                gap: 12px;
+                gap: 10px;
+                padding: 10px 12px;
+                background: #fbfbfa;
+                border: 1px solid #d6d6d2;
+                border-radius: 8px;
             }
 
             .title {
-                font-size: 20px;
-                font-weight: 700;
+                font-size: 15px;
+                font-weight: 650;
             }
 
             .subtitle {
-                color: #666;
+                color: #656b73;
                 font-size: 12px;
             }
 
             .toolbar-actions {
                 display: flex;
-                gap: 8px;
+                align-items: center;
+                gap: 6px;
+                flex-wrap: wrap;
+                justify-content: flex-end;
+            }
+
+            .connection {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                min-height: 28px;
+                padding: 0 9px;
+                border: 1px solid #d6d6d2;
+                border-radius: 8px;
+                background: #f7f7f5;
+                color: #4f565f;
+                white-space: nowrap;
+            }
+
+            .connection-dot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: #8b949e;
+            }
+
+            .connection.connected .connection-dot,
+            .connection.open .connection-dot {
+                background: #1a7f37;
+            }
+
+            .connection.connecting .connection-dot {
+                background: #bf8700;
+            }
+
+            .connection.closed .connection-dot,
+            .connection.error .connection-dot {
+                background: #cf222e;
             }
 
             .button {
-                border: 1px solid #d0d0cd;
+                border: 1px solid #c8c8c3;
                 background: #fff;
-                color: #222;
+                color: #1f2328;
                 border-radius: 8px;
-                padding: 8px 12px;
+                padding: 5px 9px;
                 cursor: pointer;
                 font: inherit;
+                min-height: 28px;
+            }
+
+            .button:hover:not(:disabled) {
+                background: #f6f8fa;
+                border-color: #9fa6ad;
+            }
+
+            .button:disabled {
+                cursor: default;
+                opacity: 0.55;
             }
 
             .button.danger {
-                border-color: #efb1b1;
-                color: #a52a2a;
-                background: #fff7f7;
+                border-color: #e2aaa6;
+                color: #a40e26;
+                background: #fff8f7;
+            }
+
+            .button.primary {
+                border-color: #8ca8ca;
+                color: #0b4d8c;
+                background: #f3f8ff;
+            }
+
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(120px, 1fr));
+                gap: 8px;
+            }
+
+            .stat {
+                min-width: 0;
+                border: 1px solid #d6d6d2;
+                border-radius: 8px;
+                background: #fbfbfa;
+                padding: 8px 10px;
+            }
+
+            .stat-label {
+                color: #656b73;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+            }
+
+            .stat-value {
+                margin-top: 2px;
+                font-size: 18px;
+                line-height: 1.1;
+                font-weight: 700;
+                font-variant-numeric: tabular-nums;
+            }
+
+            .control-bar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 8px 10px;
+                background: #fbfbfa;
+                border: 1px solid #d6d6d2;
+                border-radius: 8px;
+            }
+
+            .segmented {
+                display: inline-flex;
+                padding: 2px;
+                gap: 2px;
+                background: #e7e7e4;
+                border: 1px solid #d1d1cd;
+                border-radius: 8px;
+            }
+
+            .segment {
+                min-height: 26px;
+                border: 0;
+                border-radius: 6px;
+                background: transparent;
+                color: #4f565f;
+                cursor: pointer;
+                font: inherit;
+                padding: 4px 10px;
+                white-space: nowrap;
+            }
+
+            .segment.active {
+                background: #fff;
+                color: #1f2328;
+                box-shadow: 0 1px 2px rgba(27, 31, 36, 0.12);
+            }
+
+            .list-meta {
+                color: #656b73;
+                font-size: 12px;
+                white-space: nowrap;
             }
 
             .list {
                 display: flex;
                 flex-direction: column;
-                gap: 10px;
+                gap: 6px;
             }
 
             .card {
-                background: #fff;
-                border: 1px solid #dfdfdb;
-                border-radius: 12px;
-                padding: 14px 16px;
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+                background: #fbfbfa;
+                border: 1px solid #d6d6d2;
+                border-radius: 8px;
+                padding: 10px 12px;
             }
 
             .card-header {
                 display: flex;
                 justify-content: space-between;
-                gap: 12px;
+                gap: 10px;
                 align-items: flex-start;
             }
 
+            .task-title {
+                min-width: 0;
+            }
+
             .name {
-                font-weight: 700;
+                font-weight: 650;
                 word-break: break-word;
             }
 
             .meta {
-                color: #666;
+                color: #656b73;
                 font-size: 12px;
-                margin-top: 2px;
+                margin-top: 1px;
             }
 
             .status {
-                padding: 3px 8px;
-                border-radius: 999px;
+                padding: 3px 7px;
+                border-radius: 8px;
                 font-size: 12px;
                 background: #ececeb;
                 white-space: nowrap;
@@ -130,44 +269,46 @@
             }
 
             .grid {
-                margin-top: 12px;
+                margin-top: 9px;
                 display: grid;
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-                gap: 10px;
+                grid-template-columns: 1.1fr 1fr 0.8fr 1fr 0.7fr;
+                gap: 8px;
             }
 
             .metric-label {
-                color: #666;
+                color: #656b73;
                 font-size: 11px;
                 text-transform: uppercase;
-                letter-spacing: 0.04em;
+                letter-spacing: 0.03em;
             }
 
             .metric-value {
-                margin-top: 2px;
+                margin-top: 1px;
                 font-weight: 600;
                 word-break: break-word;
+                font-variant-numeric: tabular-nums;
             }
 
             .progress {
-                margin-top: 12px;
+                margin-top: 9px;
             }
 
             .progress-track {
-                height: 10px;
-                border-radius: 999px;
+                height: 7px;
+                border-radius: 8px;
                 background: #ececeb;
                 overflow: hidden;
             }
 
             .progress-fill {
                 height: 100%;
-                background: linear-gradient(90deg, #2b7fff, #00a8a8);
-                border-radius: 999px;
+                background: linear-gradient(90deg, #2563eb, #16836b);
+                border-radius: 8px;
+                transition: width 160ms ease-out;
             }
 
             .progress-meta {
-                margin-top: 6px;
+                margin-top: 5px;
                 display: flex;
                 justify-content: space-between;
                 gap: 12px;
@@ -176,32 +317,62 @@
             }
 
             .error {
-                margin-top: 10px;
-                color: #a52a2a;
+                margin-top: 8px;
+                color: #a40e26;
                 font-size: 12px;
                 white-space: pre-wrap;
                 word-break: break-word;
+                border-left: 3px solid #e2aaa6;
+                padding-left: 8px;
             }
 
             .actions {
-                margin-top: 12px;
+                margin-top: 9px;
                 display: flex;
                 justify-content: flex-end;
-                gap: 8px;
+                gap: 6px;
+                flex-wrap: wrap;
             }
 
             .empty {
                 border: 1px dashed #ccccca;
-                border-radius: 12px;
-                padding: 28px;
+                border-radius: 8px;
+                padding: 22px;
                 text-align: center;
-                color: #666;
+                color: #656b73;
                 background: rgba(255, 255, 255, 0.5);
             }
 
             @media (max-width: 900px) {
+                body {
+                    padding: 10px;
+                }
+
+                .page {
+                    min-width: 0;
+                }
+
+                .toolbar,
+                .control-bar {
+                    align-items: stretch;
+                    flex-direction: column;
+                }
+
+                .toolbar-actions {
+                    justify-content: flex-start;
+                }
+
+                .stats {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+
                 .grid {
                     grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+
+                .progress-meta {
+                    flex-direction: column;
+                    gap: 2px;
                 }
             }
         </style>
@@ -216,12 +387,54 @@
                     </div>
                 </div>
                 <div class="toolbar-actions">
+                    <div id="connection-status" class="connection unknown">
+                        <span class="connection-dot"></span>
+                        <span id="connection-label">事件流未知</span>
+                    </div>
+                    <button id="retry-all-failed-btn" class="button primary">
+                        重试全部失败
+                    </button>
                     <button id="clear-failed-btn" class="button danger">
                         清理失败任务
                     </button>
                     <button id="refresh-btn" class="button">刷新</button>
                     <button id="close-btn" class="button">关闭</button>
                 </div>
+            </div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-label">Total</div>
+                    <div id="stat-total" class="stat-value">0</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Running</div>
+                    <div id="stat-running" class="stat-value">0</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Failed</div>
+                    <div id="stat-failed" class="stat-value">0</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Completed / Imported</div>
+                    <div id="stat-completed" class="stat-value">0</div>
+                </div>
+            </div>
+            <div class="control-bar">
+                <div id="filter-control" class="segmented" role="tablist">
+                    <button class="segment active" data-filter="all" role="tab">
+                        全部
+                    </button>
+                    <button class="segment" data-filter="active" role="tab">
+                        活跃
+                    </button>
+                    <button class="segment" data-filter="failed" role="tab">
+                        失败
+                    </button>
+                    <button class="segment" data-filter="completed" role="tab">
+                        完成
+                    </button>
+                </div>
+                <div id="list-meta" class="list-meta">0 个任务</div>
             </div>
             <div id="task-list" class="list"></div>
         </div>
@@ -230,6 +443,8 @@
             // <![CDATA[
             let api;
             let unsubscribeTasksChanged = null;
+            let currentTasks = [];
+            let currentFilter = "all";
 
             document.addEventListener("DOMContentLoaded", async () => {
                 api = window.arguments && window.arguments[0];
@@ -242,6 +457,22 @@
                     });
                 }
 
+                document
+                    .getElementById("filter-control")
+                    .addEventListener("click", (event) => {
+                        const button = event.target.closest(
+                            "button[data-filter]",
+                        );
+                        if (!button) return;
+                        currentFilter = button.getAttribute("data-filter");
+                        render(currentTasks);
+                    });
+
+                document
+                    .getElementById("retry-all-failed-btn")
+                    .addEventListener("click", async () => {
+                        await retryAllFailed();
+                    });
                 document
                     .getElementById("clear-failed-btn")
                     .addEventListener("click", async () => {
@@ -277,18 +508,29 @@
             }
 
             function render(tasks) {
+                currentTasks = tasks || [];
+                updateConnectionStatus();
+                renderStats(currentTasks);
+                renderFilterButtons();
+
                 const root = document.getElementById("task-list");
                 root.innerHTML = "";
+                const filteredTasks = currentTasks.filter(matchesCurrentFilter);
+                document.getElementById("list-meta").textContent =
+                    `${filteredTasks.length}/${currentTasks.length} 个任务`;
 
-                if (!tasks || tasks.length === 0) {
+                if (filteredTasks.length === 0) {
                     const empty = document.createElement("div");
                     empty.className = "empty";
-                    empty.textContent = "当前没有任务。";
+                    empty.textContent =
+                        currentTasks.length === 0
+                            ? "当前没有任务。"
+                            : "当前筛选条件下没有任务。";
                     root.appendChild(empty);
                     return;
                 }
 
-                tasks.forEach((task) => {
+                filteredTasks.forEach((task) => {
                     const card = document.createElement("div");
                     card.className = "card";
 
@@ -296,6 +538,7 @@
                     header.className = "card-header";
 
                     const titleWrap = document.createElement("div");
+                    titleWrap.className = "task-title";
                     const name = document.createElement("div");
                     name.className = "name";
                     name.textContent = task.fileName;
@@ -323,6 +566,7 @@
                         ],
                         ["总进度", `${Math.round(task.overallProgress || 0)}%`],
                         ["导入状态", formatImportState(task)],
+                        ["尝试", formatAttempt(task)],
                     ].forEach(([label, value]) => {
                         const box = document.createElement("div");
                         const labelEl = document.createElement("div");
@@ -349,7 +593,12 @@
 
                     const metaRow = document.createElement("div");
                     metaRow.className = "progress-meta";
-                    metaRow.innerHTML = `<span>创建于 ${formatDate(task.createdAt)}</span><span>更新于 ${formatDate(task.updatedAt)}</span>`;
+                    const createdAt = document.createElement("span");
+                    createdAt.textContent = `创建于 ${formatDate(task.createdAt)}`;
+                    const updatedAt = document.createElement("span");
+                    updatedAt.textContent = `更新于 ${formatDate(task.updatedAt)}`;
+                    metaRow.appendChild(createdAt);
+                    metaRow.appendChild(updatedAt);
                     progress.appendChild(metaRow);
                     card.appendChild(progress);
 
@@ -364,7 +613,8 @@
                         const actions = document.createElement("div");
                         actions.className = "actions";
                         if (task.canCancel) {
-                            const cancelButton = document.createElement("button");
+                            const cancelButton =
+                                document.createElement("button");
                             cancelButton.className = "button danger";
                             cancelButton.textContent = "终止任务";
                             cancelButton.addEventListener("click", async () => {
@@ -380,7 +630,8 @@
                             actions.appendChild(cancelButton);
                         }
                         if (canRetry(task)) {
-                            const retryButton = document.createElement("button");
+                            const retryButton =
+                                document.createElement("button");
                             retryButton.className = "button";
                             retryButton.textContent =
                                 task.status === "completed"
@@ -399,7 +650,8 @@
                             actions.appendChild(retryButton);
                         }
                         if (canDelete(task)) {
-                            const deleteButton = document.createElement("button");
+                            const deleteButton =
+                                document.createElement("button");
                             deleteButton.className = "button";
                             deleteButton.textContent = "删除记录";
                             deleteButton.addEventListener("click", async () => {
@@ -420,6 +672,163 @@
 
                     root.appendChild(card);
                 });
+            }
+
+            function renderStats(tasks) {
+                const stats = {
+                    total: tasks.length,
+                    running: tasks.filter(isRunningTask).length,
+                    failed: tasks.filter(isFailedTask).length,
+                    completed: tasks.filter(isCompletedTask).length,
+                };
+                document.getElementById("stat-total").textContent = stats.total;
+                document.getElementById("stat-running").textContent =
+                    stats.running;
+                document.getElementById("stat-failed").textContent =
+                    stats.failed;
+                document.getElementById("stat-completed").textContent =
+                    stats.completed;
+                document.getElementById("retry-all-failed-btn").disabled =
+                    stats.failed === 0 || !api;
+            }
+
+            function renderFilterButtons() {
+                document
+                    .querySelectorAll("#filter-control .segment")
+                    .forEach((button) => {
+                        const active =
+                            button.getAttribute("data-filter") ===
+                            currentFilter;
+                        button.classList.toggle("active", active);
+                        button.setAttribute(
+                            "aria-selected",
+                            active ? "true" : "false",
+                        );
+                    });
+            }
+
+            function updateConnectionStatus() {
+                const status = document.getElementById("connection-status");
+                const label = document.getElementById("connection-label");
+                const rawState =
+                    api && typeof api.getEventStreamState === "function"
+                        ? api.getEventStreamState()
+                        : null;
+                const state = normalizeEventStreamState(rawState);
+                status.className = `connection ${state.className}`;
+                label.textContent = state.label;
+            }
+
+            async function retryAllFailed() {
+                if (!api) return;
+                const retryButton = document.getElementById(
+                    "retry-all-failed-btn",
+                );
+                retryButton.disabled = true;
+                try {
+                    if (typeof api.retryFailedTasks === "function") {
+                        await api.retryFailedTasks();
+                    } else {
+                        const failedTasks = currentTasks.filter(canRetry);
+                        for (const task of failedTasks) {
+                            await api.retryTask(task.taskId);
+                        }
+                    }
+                    render(api.getTasks());
+                    void refresh();
+                } catch (error) {
+                    alert(String(error));
+                    render(currentTasks);
+                }
+            }
+
+            function matchesCurrentFilter(task) {
+                if (currentFilter === "active") return isActiveTask(task);
+                if (currentFilter === "failed") return isFailedTask(task);
+                if (currentFilter === "completed") return isCompletedTask(task);
+                return true;
+            }
+
+            function isActiveTask(task) {
+                return (
+                    task.status === "queued" ||
+                    task.status === "running" ||
+                    task.status === "cancelling" ||
+                    task.importState === "pending" ||
+                    task.importState === "importing"
+                );
+            }
+
+            function isRunningTask(task) {
+                return task.status === "running";
+            }
+
+            function isFailedTask(task) {
+                return (
+                    task.status === "failed" || task.importState === "failed"
+                );
+            }
+
+            function isCompletedTask(task) {
+                return (
+                    task.status === "completed" ||
+                    task.importState === "imported"
+                );
+            }
+
+            function normalizeEventStreamState(rawState) {
+                if (rawState === null || rawState === undefined) {
+                    return {
+                        className: "unknown",
+                        label: "事件流不可用",
+                    };
+                }
+                if (typeof rawState === "object") {
+                    const total = Number(rawState.total || 0);
+                    const connected = Number(rawState.connected || 0);
+                    if (total === 0) {
+                        return {
+                            className: "closed",
+                            label: "事件流未连接",
+                        };
+                    }
+                    if (rawState.hasErrors) {
+                        return {
+                            className: "error",
+                            label: `事件流异常 ${connected}/${total}`,
+                        };
+                    }
+                    if (connected === total) {
+                        return {
+                            className: "connected",
+                            label: `事件流已连接 ${connected}/${total}`,
+                        };
+                    }
+                    return {
+                        className: "connecting",
+                        label: `事件流连接中 ${connected}/${total}`,
+                    };
+                }
+                const state = String(rawState).toLowerCase();
+                const mapping = {
+                    open: ["open", "事件流已连接"],
+                    connected: ["connected", "事件流已连接"],
+                    connecting: ["connecting", "事件流连接中"],
+                    closed: ["closed", "事件流已断开"],
+                    disconnected: ["closed", "事件流已断开"],
+                    error: ["error", "事件流异常"],
+                };
+                const item = mapping[state];
+                if (item) {
+                    return {
+                        className: item[0],
+                        label: item[1],
+                    };
+                }
+                return {
+                    className: "unknown",
+                    label: `事件流 ${rawState}`,
+                };
             }
 
             function formatStatus(task) {
@@ -445,6 +854,13 @@
                 return mapping[task.importState] || task.importState || "无";
             }
 
+            function formatAttempt(task) {
+                if (task.attempt === undefined || task.attempt === null) {
+                    return "-";
+                }
+                return String(task.attempt);
+            }
+
             function canDelete(task) {
                 if (task.status === "failed" || task.status === "cancelled") {
                     return true;
@@ -461,8 +877,7 @@
                     return true;
                 }
                 return (
-                    task.status === "completed" &&
-                    task.importState === "failed"
+                    task.status === "completed" && task.importState === "failed"
                 );
             }
 
