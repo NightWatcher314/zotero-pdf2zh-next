@@ -15,8 +15,11 @@ Examples:
 
 The script updates the shared plugin/server version, runs validation, commits
 the version bump, pushes main, creates the v<version> GitHub release with the
-XPI asset, and updates the fixed "release" GitHub release with update.json for
-Zotero's Check for Updates flow.
+XPI asset using CHANGELOG.md release notes, and updates the fixed "release"
+GitHub release with update.json for Zotero's Check for Updates flow.
+
+Before running, add a CHANGELOG.md section like:
+  ## v5.1.1 - YYYY-MM-DD
 
 Unless --no-push or --no-tap is set, the script also updates the Homebrew tap
 formula after the main repo push/release succeeds. The default tap path is
@@ -120,6 +123,22 @@ if gh release view "$TAG" >/dev/null 2>&1; then
     die "GitHub release already exists: $TAG"
 fi
 
+CHANGELOG_SECTION="$(awk -v tag="$TAG" '
+    $0 ~ "^## " tag "([[:space:]]|-|$)" {
+        found = 1
+        print
+        next
+    }
+    found && /^## / {
+        exit
+    }
+    found {
+        print
+    }
+' CHANGELOG.md)"
+[[ -n "$(printf '%s' "$CHANGELOG_SECTION" | tr -d '[:space:]')" ]] ||
+    die "CHANGELOG.md must contain a section starting with: ## $TAG"
+
 node -e '
 const fs = require("fs");
 const version = process.argv[1];
@@ -165,9 +184,8 @@ fi
 if [[ "$PUBLISH_RELEASE" -eq 1 ]]; then
     NOTES_FILE="$(mktemp)"
     trap 'rm -f "$NOTES_FILE"' EXIT
-    cat >"$NOTES_FILE" <<EOF
-Release $TAG.
-
+    printf '%s\n\n' "$CHANGELOG_SECTION" >"$NOTES_FILE"
+    cat >>"$NOTES_FILE" <<EOF
 Zotero automatic updates use the fixed release asset:
 https://github.com/NightWatcher314/zotero-pdf2zh-next/releases/download/release/update.json
 EOF

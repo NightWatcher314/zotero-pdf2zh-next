@@ -12,6 +12,7 @@ Update these files together:
 - `server/pyproject.toml`
 - `server/server.py`
 - `README.md` if it shows the current unified version
+- `CHANGELOG.md` with a `## v<version> - YYYY-MM-DD` section before release
 
 Use this workflow:
 
@@ -20,6 +21,9 @@ Use this workflow:
 
 2. Bump the shared version in the main repo.
    Keep plugin and server identical.
+
+   Before running `scripts/release.sh`, add the release notes to `CHANGELOG.md`.
+   The script will fail if `CHANGELOG.md` does not contain a matching `## v<version>` section, and GitHub release notes are generated from that section.
 
 3. Validate the main repo.
    Run `pnpm --dir plugin build`.
