@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import queue
 import sys
 import tempfile
 import unittest
@@ -177,6 +178,57 @@ class ServerRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["status"], "ok")
         self.assertEqual(response.json["deletedCount"], 2)
+
+    def test_retry_task_returns_requeued_task(self) -> None:
+        with patch.object(
+            server_module.TASK_MANAGER,
+            "retry_task",
+            return_value={
+                "taskId": "task-1",
+                "fileName": "paper.pdf",
+                "service": "openai",
+                "outputModes": ["dual"],
+                "status": "queued",
+                "stage": None,
+                "stageCurrent": 0,
+                "stageTotal": 0,
+                "stageProgress": 0,
+                "overallProgress": 0,
+                "error": None,
+                "resultFiles": {},
+                "createdAt": "2026-01-01T00:00:00Z",
+                "updatedAt": "2026-01-01T00:01:00Z",
+                "canCancel": True,
+                "cancelRequested": False,
+            },
+        ):
+            response = self.client.post("/tasks/task-1/retry")
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json["status"], "ok")
+        self.assertEqual(response.json["task"]["status"], "queued")
+
+    def test_task_events_streams_task_events(self) -> None:
+        event_queue: queue.Queue[dict[str, object]] = queue.Queue()
+        event_queue.put({"type": "deleted", "taskId": "task-1"})
+
+        with (
+            patch.object(
+                server_module.TASK_MANAGER,
+                "subscribe",
+                return_value=event_queue,
+            ),
+            patch.object(server_module.TASK_MANAGER, "unsubscribe") as unsubscribe,
+        ):
+            response = self.client.get("/tasks/events", buffered=False)
+            first_chunk = next(response.response).decode("utf-8")
+            response.close()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/event-stream", response.content_type)
+        self.assertIn('"type": "deleted"', first_chunk)
+        self.assertIn('"taskId": "task-1"', first_chunk)
+        unsubscribe.assert_called_once_with(event_queue)
 
     def test_validate_config_returns_service_and_model(self) -> None:
         with patch.object(

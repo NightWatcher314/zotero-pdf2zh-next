@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import queue
 import shutil
 import threading
 from dataclasses import dataclass, field
@@ -72,6 +73,7 @@ class TaskManager:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._tasks: dict[str, TaskRecord] = {}
+        self._subscribers: set[queue.Queue[dict[str, Any]]] = set()
 
     def list_tasks(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -112,6 +114,7 @@ class TaskManager:
         )
         with self._lock:
             self._tasks[task_id] = record
+        self._publish_event({"type": "task", "task": record.to_dict()})
         LOGGER.info(
             "[%s] task queued: file=%s service=%s output_modes=%s workspace=%s",
             task_id,
@@ -123,6 +126,20 @@ class TaskManager:
         thread.start()
         return record.to_dict()
 
+    def subscribe(self) -> queue.Queue[dict[str, Any]]:
+        event_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+        with self._lock:
+            self._subscribers.add(event_queue)
+            records = list(self._tasks.values())
+        records.sort(key=lambda record: record.created_at, reverse=True)
+        for record in records:
+            event_queue.put({"type": "snapshot", "task": record.to_dict()})
+        return event_queue
+
+    def unsubscribe(self, event_queue: queue.Queue[dict[str, Any]]) -> None:
+        with self._lock:
+            self._subscribers.discard(event_queue)
+
     def cancel_task(self, task_id: str) -> dict[str, Any] | None:
         with self._lock:
             record = self._tasks.get(task_id)
@@ -133,9 +150,11 @@ class TaskManager:
             record.cancel_requested = True
             record.status = "cancelling"
             record.updated_at = utc_now_iso()
+            snapshot = record.to_dict()
             cancel_callback = record.cancel_callback
 
         LOGGER.info("[%s] cancellation requested", task_id)
+        self._publish_event({"type": "task", "task": snapshot})
         if cancel_callback is not None:
             cancel_callback()
 
@@ -152,6 +171,7 @@ class TaskManager:
             deleted = self._tasks.pop(task_id)
 
         shutil.rmtree(deleted.workspace_dir, ignore_errors=True)
+        self._publish_event({"type": "deleted", "taskId": task_id})
         LOGGER.info("[%s] task deleted", task_id)
         return deleted.to_dict()
 
@@ -169,7 +189,52 @@ class TaskManager:
 
         if failed_task_ids:
             LOGGER.info("cleared failed tasks: %s", ",".join(failed_task_ids))
+        for task_id in failed_task_ids:
+            self._publish_event({"type": "deleted", "taskId": task_id})
         return len(failed_task_ids)
+
+    def retry_task(self, task_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            record = self._tasks.get(task_id)
+            if record is None:
+                return None
+            if record.status in {"queued", "running", "cancelling"}:
+                raise ValueError("Active task cannot be retried")
+            if record.status != "failed":
+                raise ValueError("Only failed tasks can be retried")
+
+            input_path = Path(record.request_payload["input_path"])
+            output_dir = Path(record.request_payload["output_dir"])
+            if not input_path.exists():
+                raise ValueError("Task input file is no longer available")
+
+            shutil.rmtree(output_dir, ignore_errors=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            record.status = "queued"
+            record.stage = None
+            record.stage_current = 0
+            record.stage_total = 0
+            record.stage_progress = 0.0
+            record.overall_progress = 0.0
+            record.error = None
+            record.result_files = {}
+            record.cancel_requested = False
+            record.cancel_callback = None
+            record.updated_at = utc_now_iso()
+            snapshot = record.to_dict()
+
+            thread = threading.Thread(
+                target=self._run_task,
+                args=(task_id,),
+                daemon=True,
+                name=f"pdf2zh-task-{task_id}-retry",
+            )
+
+        self._publish_event({"type": "task", "task": snapshot})
+        LOGGER.info("[%s] task retry queued", task_id)
+        thread.start()
+        return snapshot
 
     def get_result_file(
         self,
@@ -200,6 +265,9 @@ class TaskManager:
             record.status = "cancelling" if record.cancel_requested else "running"
             record.updated_at = utc_now_iso()
             request_payload = dict(record.request_payload)
+            snapshot = record.to_dict()
+
+        self._publish_event({"type": "task", "task": snapshot})
 
         try:
             result = asyncio.run(
@@ -227,6 +295,8 @@ class TaskManager:
             record.stage_progress = 100.0
             record.overall_progress = 100.0
             record.updated_at = utc_now_iso()
+            snapshot = record.to_dict()
+        self._publish_event({"type": "task", "task": snapshot})
         LOGGER.info(
             "[%s] task completed: %s",
             task_id,
@@ -282,6 +352,9 @@ class TaskManager:
                 record.error = str(event.get("error") or "translation failed")
 
             record.updated_at = utc_now_iso()
+            snapshot = record.to_dict()
+
+        self._publish_event({"type": "task", "task": snapshot})
 
     def _handle_task_error(self, task_id: str, exc: Exception) -> None:
         with self._lock:
@@ -296,12 +369,21 @@ class TaskManager:
             record.error = None if cancelled else error_message
             record.updated_at = utc_now_iso()
             workspace_dir = record.workspace_dir
+            snapshot = record.to_dict()
 
-        shutil.rmtree(workspace_dir, ignore_errors=True)
+        if cancelled:
+            shutil.rmtree(workspace_dir, ignore_errors=True)
+        self._publish_event({"type": "task", "task": snapshot})
         if cancelled:
             LOGGER.info("[%s] task cancelled", task_id)
             return
         LOGGER.error("[%s] task failed: %s", task_id, error_message)
+
+    def _publish_event(self, event: dict[str, Any]) -> None:
+        with self._lock:
+            subscribers = list(self._subscribers)
+        for event_queue in subscribers:
+            event_queue.put(event)
 
     @staticmethod
     def _coerce_int(value: Any, default: int) -> int:

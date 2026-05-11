@@ -53,3 +53,9 @@ export interface PluginTask extends ServerTaskSnapshot {
     importState: "pending" | "importing" | "imported" | "failed" | "none";
     importError?: string;
 }
+
+export interface ServerTaskEvent {
+    type: "snapshot" | "task" | "deleted";
+    task?: ServerTaskSnapshot;
+    taskId?: string;
+}

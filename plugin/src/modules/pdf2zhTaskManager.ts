@@ -4,6 +4,7 @@ import {
     OutputMode,
     PluginTask,
     ServerConfig,
+    ServerTaskEvent,
     ServerTaskSnapshot,
     ServerTaskStatus,
 } from "./pdf2zhTypes";
@@ -16,8 +17,10 @@ type TaskDialogArgs = {
     _initPromise: any;
     getTasks: () => PluginTask[];
     hasActiveTasks: () => boolean;
+    onTasksChanged: (listener: () => void) => () => void;
     refreshTasks: () => Promise<void>;
     cancelTask: (taskId: string) => Promise<void>;
+    retryTask: (taskId: string) => Promise<void>;
     deleteTask: (taskId: string) => Promise<void>;
     clearFailedTasks: () => Promise<void>;
 };
@@ -38,8 +41,9 @@ const ACTIVE_STATUSES: ServerTaskStatus[] = ["queued", "running", "cancelling"];
 
 export class PDF2zhTaskManager {
     private static tasks = new Map<string, PluginTask>();
-    private static pollTimer: ReturnType<typeof setInterval> | undefined;
     private static pollPromise: Promise<void> | null = null;
+    private static eventSources = new Map<string, EventSource>();
+    private static taskListeners = new Set<() => void>();
     private static dialogWindow: Window | undefined;
 
     static async processWorker() {
@@ -114,8 +118,11 @@ export class PDF2zhTaskManager {
             _initPromise: Zotero.Promise.defer(),
             getTasks: () => this.getTasks(),
             hasActiveTasks: () => this.hasActiveTasks(),
+            onTasksChanged: (listener: () => void) =>
+                this.onTasksChanged(listener),
             refreshTasks: () => this.refreshTasks(),
             cancelTask: (taskId: string) => this.cancelTask(taskId),
+            retryTask: (taskId: string) => this.retryTask(taskId),
             deleteTask: (taskId: string) => this.deleteTask(taskId),
             clearFailedTasks: () => this.clearFailedTasks(),
         };
@@ -131,9 +138,11 @@ export class PDF2zhTaskManager {
         }
 
         this.dialogWindow = dialogWindow;
+        this.ensureEventStreams();
         dialogWindow.addEventListener("unload", () => {
             if (this.dialogWindow === dialogWindow) {
                 this.dialogWindow = undefined;
+                this.ensureEventStreams();
             }
         });
     }
@@ -143,6 +152,7 @@ export class PDF2zhTaskManager {
             this.dialogWindow.close();
         }
         this.dialogWindow = undefined;
+        this.ensureEventStreams();
     }
 
     static getTasks(): PluginTask[] {
@@ -155,9 +165,17 @@ export class PDF2zhTaskManager {
         return Array.from(this.tasks.values()).some(
             (task) =>
                 ACTIVE_STATUSES.includes(task.status) ||
-                task.importState === "pending" ||
-                task.importState === "importing",
+                (task.status === "completed" &&
+                    (task.importState === "pending" ||
+                        task.importState === "importing")),
         );
+    }
+
+    static onTasksChanged(listener: () => void): () => void {
+        this.taskListeners.add(listener);
+        return () => {
+            this.taskListeners.delete(listener);
+        };
     }
 
     static async refreshTasks(): Promise<void> {
@@ -198,6 +216,41 @@ export class PDF2zhTaskManager {
         }
     }
 
+    static async retryTask(taskId: string): Promise<void> {
+        const task = this.tasks.get(taskId);
+        if (!task) {
+            throw new Error("任务不存在");
+        }
+
+        if (task.status === "completed" && task.importState === "failed") {
+            this.updateLocalTask(taskId, {
+                importState: "pending",
+                importError: undefined,
+            });
+            await this.importTaskOutputs(taskId);
+            return;
+        }
+
+        const response = await fetch(`${task.serverUrl}/tasks/${taskId}/retry`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+        });
+        if (!response.ok) {
+            throw new Error(await this.readErrorMessage(response));
+        }
+
+        const result = (await response.json()) as { task?: ServerTaskSnapshot };
+        if (result.task) {
+            this.upsertTask(result.task, task.serverUrl, {
+                itemID: task.itemID,
+                source: task.source,
+                importState: task.importState,
+                importError: task.importError,
+            });
+        }
+        this.ensureEventStreams();
+    }
+
     static async deleteTask(taskId: string): Promise<void> {
         const task = this.tasks.get(taskId);
         if (!task) {
@@ -213,7 +266,8 @@ export class PDF2zhTaskManager {
         }
 
         this.tasks.delete(taskId);
-        this.ensurePolling();
+        this.notifyTasksChanged();
+        this.ensureEventStreams();
     }
 
     static async clearFailedTasks(): Promise<void> {
@@ -239,7 +293,8 @@ export class PDF2zhTaskManager {
             }
         }
 
-        this.ensurePolling();
+        this.notifyTasksChanged();
+        this.ensureEventStreams();
     }
 
     private static async submitTask(item: Zotero.Item, config: ServerConfig) {
@@ -271,7 +326,7 @@ export class PDF2zhTaskManager {
             source: "local",
             importState: "pending",
         });
-        this.ensurePolling();
+        this.ensureEventStreams();
     }
 
     private static async refreshTasksInternal(): Promise<void> {
@@ -309,10 +364,16 @@ export class PDF2zhTaskManager {
                 }
                 if (!serverTaskIds.has(task.taskId)) {
                     this.tasks.delete(task.taskId);
+                    this.notifyTasksChanged();
                 }
             }
         }
 
+        await this.importCompletedLocalTasks();
+        this.ensureEventStreams();
+    }
+
+    private static async importCompletedLocalTasks(): Promise<void> {
         for (const task of this.getTasks()) {
             if (
                 task.source === "local" &&
@@ -322,8 +383,6 @@ export class PDF2zhTaskManager {
                 await this.importTaskOutputs(task.taskId);
             }
         }
-
-        this.ensurePolling();
     }
 
     private static async importTaskOutputs(taskId: string) {
@@ -427,6 +486,7 @@ export class PDF2zhTaskManager {
             ...overrides,
         };
         this.tasks.set(snapshot.taskId, nextTask);
+        this.notifyTasksChanged();
     }
 
     private static updateLocalTask(
@@ -441,23 +501,103 @@ export class PDF2zhTaskManager {
             ...current,
             ...patch,
         });
+        this.notifyTasksChanged();
     }
 
-    private static ensurePolling() {
-        const hasActiveTasks = this.hasActiveTasks();
-
-        if (!hasActiveTasks) {
-            if (this.pollTimer != undefined) {
-                clearInterval(this.pollTimer);
-                this.pollTimer = undefined;
+    private static ensureEventStreams() {
+        const serverUrls = new Set<string>();
+        const currentServerUrl = getPref("new_serverip")?.toString() || "";
+        const dialogOpen = Boolean(
+            this.dialogWindow && !this.dialogWindow.closed,
+        );
+        const shouldTrackCurrentServer =
+            dialogOpen || this.hasActiveTasks();
+        if (currentServerUrl && shouldTrackCurrentServer) {
+            serverUrls.add(currentServerUrl);
+        }
+        for (const task of this.tasks.values()) {
+            const shouldTrackTaskServer =
+                dialogOpen ||
+                ACTIVE_STATUSES.includes(task.status) ||
+                (task.status === "completed" &&
+                    (task.importState === "pending" ||
+                        task.importState === "importing"));
+            if (task.serverUrl && shouldTrackTaskServer) {
+                serverUrls.add(task.serverUrl);
             }
+        }
+
+        for (const [serverUrl, source] of this.eventSources) {
+            if (!serverUrls.has(serverUrl)) {
+                source.close();
+                this.eventSources.delete(serverUrl);
+            }
+        }
+
+        for (const serverUrl of serverUrls) {
+            if (this.eventSources.has(serverUrl)) {
+                continue;
+            }
+            this.openEventStream(serverUrl);
+        }
+    }
+
+    private static openEventStream(serverUrl: string) {
+        const mainWindow = Zotero.getMainWindow() as Window & {
+            EventSource?: typeof EventSource;
+        };
+        const EventSourceConstructor =
+            typeof EventSource === "undefined"
+                ? mainWindow.EventSource
+                : EventSource;
+        if (!EventSourceConstructor) {
             return;
         }
 
-        if (this.pollTimer == undefined) {
-            this.pollTimer = setInterval(() => {
-                void this.refreshTasks();
-            }, 1000);
+        const source = new EventSourceConstructor(`${serverUrl}/tasks/events`);
+        source.onmessage = (event) => {
+            this.handleServerTaskEvent(serverUrl, event.data);
+        };
+        source.onerror = () => {
+            ztoolkit.log(`任务进度事件连接异常: ${serverUrl}`);
+        };
+        this.eventSources.set(serverUrl, source);
+    }
+
+    private static handleServerTaskEvent(serverUrl: string, data: string) {
+        let event: ServerTaskEvent;
+        try {
+            event = JSON.parse(data) as ServerTaskEvent;
+        } catch (_error) {
+            return;
+        }
+
+        if ((event.type === "snapshot" || event.type === "task") && event.task) {
+            const existing = this.tasks.get(event.task.taskId);
+            this.upsertTask(event.task, serverUrl, {
+                itemID: existing?.itemID,
+                source: existing?.source || "remote",
+                importState: existing?.importState || "none",
+                importError: existing?.importError,
+            });
+            void this.importCompletedLocalTasks();
+            return;
+        }
+
+        if (event.type === "deleted" && event.taskId) {
+            this.tasks.delete(event.taskId);
+            this.notifyTasksChanged();
+            this.ensureEventStreams();
+        }
+    }
+
+    private static notifyTasksChanged(): void {
+        for (const listener of this.taskListeners) {
+            try {
+                listener();
+            } catch (error) {
+                ztoolkit.log(error);
+            }
         }
     }
 

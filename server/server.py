@@ -4,8 +4,10 @@ import argparse
 import asyncio
 import base64
 import binascii
+import json
 import logging
 import os
+import queue
 import shutil
 import uuid
 from dataclasses import dataclass
@@ -13,13 +15,13 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, Response, jsonify, request, send_file, stream_with_context
 from pdf2zh_next_service import explain_service_error
 from pdf2zh_next_service import translate_pdf_with_callbacks
 from pdf2zh_next_service import validate_service_config
 from task_manager import TaskManager
 
-VERSION = "5.0.1"
+VERSION = "5.1.0"
 LOGGER = logging.getLogger("zotero_pdf2zh_server")
 TASK_MANAGER = TaskManager()
 TRANSLATES_DIR = Path(__file__).resolve().parent / "translates"
@@ -156,10 +158,47 @@ def create_app() -> Flask:
             return jsonify({"status": "error", "message": "Task not found"}), 404
         return jsonify({"status": "ok", "task": task}), 200
 
+    @app.post("/tasks/<task_id>/retry")
+    def retry_task(task_id: str):
+        try:
+            task = TASK_MANAGER.retry_task(task_id)
+        except ValueError as exc:
+            return jsonify({"status": "error", "message": str(exc)}), 409
+        if task is None:
+            return jsonify({"status": "error", "message": "Task not found"}), 404
+        return jsonify({"status": "ok", "task": task}), 202
+
     @app.post("/tasks/clear-failed")
     def clear_failed_tasks():
         deleted_count = TASK_MANAGER.clear_failed_tasks()
         return jsonify({"status": "ok", "deletedCount": deleted_count}), 200
+
+    @app.get("/tasks/events")
+    def task_events():
+        event_queue = TASK_MANAGER.subscribe()
+
+        @stream_with_context
+        def generate():
+            try:
+                while True:
+                    try:
+                        event = event_queue.get(timeout=15)
+                    except queue.Empty:
+                        yield ": keepalive\n\n"
+                        continue
+                    payload = json.dumps(event, ensure_ascii=False)
+                    yield f"data: {payload}\n\n"
+            finally:
+                TASK_MANAGER.unsubscribe(event_queue)
+
+        return Response(
+            generate(),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.get("/tasks/<task_id>/result")
     def task_result(task_id: str):

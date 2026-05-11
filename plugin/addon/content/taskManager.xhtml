@@ -187,6 +187,7 @@
                 margin-top: 12px;
                 display: flex;
                 justify-content: flex-end;
+                gap: 8px;
             }
 
             .empty {
@@ -228,12 +229,17 @@
         <script>
             // <![CDATA[
             let api;
-            let renderTimer = null;
+            let unsubscribeTasksChanged = null;
 
             document.addEventListener("DOMContentLoaded", async () => {
                 api = window.arguments && window.arguments[0];
                 if (api && api._initPromise) {
                     api._initPromise.resolve();
+                }
+                if (api && api.onTasksChanged) {
+                    unsubscribeTasksChanged = api.onTasksChanged(() => {
+                        render(api.getTasks());
+                    });
                 }
 
                 document
@@ -258,8 +264,9 @@
             });
 
             window.addEventListener("unload", () => {
-                if (renderTimer) {
-                    clearInterval(renderTimer);
+                if (unsubscribeTasksChanged) {
+                    unsubscribeTasksChanged();
+                    unsubscribeTasksChanged = null;
                 }
             });
 
@@ -267,23 +274,6 @@
                 if (!api) return;
                 await api.refreshTasks();
                 render(api.getTasks());
-                syncRenderTimer();
-            }
-
-            function syncRenderTimer() {
-                if (!api) return;
-                const hasActiveTasks = api.hasActiveTasks();
-                if (hasActiveTasks && !renderTimer) {
-                    renderTimer = setInterval(() => {
-                        render(api.getTasks());
-                        syncRenderTimer();
-                    }, 1000);
-                    return;
-                }
-                if (!hasActiveTasks && renderTimer) {
-                    clearInterval(renderTimer);
-                    renderTimer = null;
-                }
             }
 
             function render(tasks) {
@@ -370,7 +360,7 @@
                         card.appendChild(error);
                     }
 
-                    if (task.canCancel || canDelete(task)) {
+                    if (task.canCancel || canRetry(task) || canDelete(task)) {
                         const actions = document.createElement("div");
                         actions.className = "actions";
                         if (task.canCancel) {
@@ -389,11 +379,29 @@
                             });
                             actions.appendChild(cancelButton);
                         }
+                        if (canRetry(task)) {
+                            const retryButton = document.createElement("button");
+                            retryButton.className = "button";
+                            retryButton.textContent =
+                                task.status === "completed"
+                                    ? "重试导入"
+                                    : "重试任务";
+                            retryButton.addEventListener("click", async () => {
+                                retryButton.disabled = true;
+                                try {
+                                    await api.retryTask(task.taskId);
+                                    render(api.getTasks());
+                                } catch (error) {
+                                    alert(String(error));
+                                    retryButton.disabled = false;
+                                }
+                            });
+                            actions.appendChild(retryButton);
+                        }
                         if (canDelete(task)) {
                             const deleteButton = document.createElement("button");
                             deleteButton.className = "button";
                             deleteButton.textContent = "删除记录";
-                            deleteButton.style.marginLeft = "8px";
                             deleteButton.addEventListener("click", async () => {
                                 deleteButton.disabled = true;
                                 try {
@@ -445,6 +453,16 @@
                     task.status === "completed" &&
                     task.importState !== "pending" &&
                     task.importState !== "importing"
+                );
+            }
+
+            function canRetry(task) {
+                if (task.status === "failed") {
+                    return true;
+                }
+                return (
+                    task.status === "completed" &&
+                    task.importState === "failed"
                 );
             }
 
