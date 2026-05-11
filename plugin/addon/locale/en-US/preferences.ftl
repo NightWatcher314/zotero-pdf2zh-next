@@ -2,6 +2,10 @@ pref-title = zotero-pdf2zh-next
 pref-help = { $name } Build { $version } { $time }
 
 pref-config = zotero-pdf2zh-next Configuration
+pref-config-description = Configure translation, outputs, and local server status in one place
+pref-connection = Server Connection
+pref-plugin-version = Plugin Version
+pref-server-version = Server Version
 pref-config-basic = zotero-pdf2zh-next Translation Config
 pref-serverip = Python Server URL
 pref-service = Translation Service

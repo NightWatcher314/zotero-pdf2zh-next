@@ -1,4 +1,4 @@
-import { config } from "../../package.json";
+import { config, version } from "../../package.json";
 import { getPref, setPref } from "../utils/prefs";
 import {
     getActiveLLMApiByService,
@@ -14,6 +14,11 @@ type ValidateConfigResponse = {
     service?: string;
     model?: string | null;
     message?: string;
+};
+
+type HealthResponse = {
+    status?: string;
+    version?: string;
 };
 
 function normalizeServiceName(value: string): string {
@@ -43,6 +48,8 @@ export async function registerPrefsScripts(_window: Window) {
         setPref("service", normalizedService);
     }
     bindPrefEvents();
+    updateVersionUI();
+    void refreshServerVersion();
     initTableUI();
 }
 
@@ -64,13 +71,26 @@ function bindPrefEvents() {
     const outputDualCheckbox = doc.getElementById(
         `zotero-prefpane-${config.addonRef}-outputDual`,
     ) as XUL.Checkbox | null;
+    const serverUrlInput = doc.getElementById(
+        `zotero-prefpane-${config.addonRef}-new_serverip`,
+    );
 
+    sourceLangSelect?.replaceChildren();
+    targetLangSelect?.replaceChildren();
     for (const [langName, langCode] of Object.entries(lang_map)) {
         const option = doc.createElement("option");
         option.value = langCode;
         option.textContent = langName;
         sourceLangSelect?.appendChild(option.cloneNode(true));
         targetLangSelect?.appendChild(option.cloneNode(true));
+    }
+    if (sourceLangSelect) {
+        (sourceLangSelect as HTMLSelectElement).value =
+            getPref("sourceLang")?.toString() || "en";
+    }
+    if (targetLangSelect) {
+        (targetLangSelect as HTMLSelectElement).value =
+            getPref("targetLang")?.toString() || "zh-CN";
     }
 
     const ensureOutputModes = (fallbackKey: "outputMono" | "outputDual") => {
@@ -96,19 +116,20 @@ function bindPrefEvents() {
         ensureOutputModes("outputMono");
     });
 
-    doc
-        .querySelector(`#zotero-prefpane-${config.addonRef}-checkConnection`)
-        ?.addEventListener("click", async () => {
-            await checkServerConnection();
-        });
+    doc.querySelector(
+        `#zotero-prefpane-${config.addonRef}-checkConnection`,
+    )?.addEventListener("click", async () => {
+        await checkServerConnection();
+    });
+    serverUrlInput?.addEventListener("change", () => {
+        void refreshServerVersion();
+    });
 
-    doc
-        .querySelector(
-            `#zotero-prefpane-${config.addonRef}-llmapi-table-container`,
-        )
-        ?.addEventListener("showing", () => {
-            updateLLMApiTableUI();
-        });
+    doc.querySelector(
+        `#zotero-prefpane-${config.addonRef}-llmapi-table-container`,
+    )?.addEventListener("showing", () => {
+        updateLLMApiTableUI();
+    });
 
     const addButton = doc.getElementById(
         `zotero-prefpane-${config.addonRef}-llmapi-add`,
@@ -184,7 +205,9 @@ function bindPrefEvents() {
         llmApis.splice(index, 1);
         llmApis.unshift(llmApi);
         addon.data.llmApis?.map.clear();
-        llmApis.forEach((entry) => addon.data.llmApis?.map.set(entry.key, entry));
+        llmApis.forEach((entry) =>
+            addon.data.llmApis?.map.set(entry.key, entry),
+        );
         updateCachedLLMApiKeys();
         saveLLMApisToPrefs();
         updateLLMApiTableUI();
@@ -372,6 +395,88 @@ export function loadLLMApisFromPrefs() {
 
 function updateLLMApiTableUI() {
     setTimeout(() => addon.data.prefs?.tableHelper?.treeInstance.invalidate());
+}
+
+function updateVersionUI() {
+    const doc = addon.data.prefs?.window?.document;
+    if (!doc) {
+        return;
+    }
+    setText(doc, "pluginVersion", version);
+    setServerVersionState(doc, {
+        version: "—",
+        status: "未检查",
+        state: "unknown",
+    });
+}
+
+async function refreshServerVersion() {
+    const doc = addon.data.prefs?.window?.document;
+    if (!doc) {
+        return;
+    }
+
+    const serverUrl = getPref("new_serverip")?.toString() || "";
+    if (!serverUrl) {
+        setServerVersionState(doc, {
+            version: "—",
+            status: "未配置",
+            state: "unknown",
+        });
+        return;
+    }
+
+    setServerVersionState(doc, {
+        version: "…",
+        status: "检查中",
+        state: "unknown",
+    });
+
+    try {
+        const response = await axios.get<HealthResponse>(
+            `${serverUrl}/health`,
+            {
+                timeout: 4000,
+                headers: { "Content-Type": "application/json" },
+            },
+        );
+        setServerVersionState(doc, {
+            version: response.data?.version || "未知",
+            status: response.data?.status === "ok" ? "已连接" : "状态未知",
+            state: response.data?.status === "ok" ? "ok" : "unknown",
+        });
+    } catch {
+        setServerVersionState(doc, {
+            version: "—",
+            status: "无法连接",
+            state: "error",
+        });
+    }
+}
+
+function setServerVersionState(
+    doc: Document,
+    state: {
+        version: string;
+        status: string;
+        state: "unknown" | "ok" | "error";
+    },
+) {
+    setText(doc, "serverVersion", state.version);
+    setText(doc, "serverStatus", state.status);
+    const card = doc.getElementById(
+        `zotero-prefpane-${config.addonRef}-serverVersionCard`,
+    );
+    card?.setAttribute("data-state", state.state);
+}
+
+function setText(doc: Document, idSuffix: string, value: string) {
+    const element = doc.getElementById(
+        `zotero-prefpane-${config.addonRef}-${idSuffix}`,
+    );
+    if (element) {
+        element.textContent = value;
+    }
 }
 
 function setButtonDisabled(button: XUL.Button, disabled: boolean) {
@@ -570,6 +675,13 @@ async function checkServerConnection() {
         ztoolkit.getGlobal("alert")("请先设置Server地址");
         return;
     }
+    const doc = addon.data.prefs?.window?.document;
+    const checkButton = doc?.getElementById(
+        `zotero-prefpane-${config.addonRef}-checkConnection`,
+    ) as XUL.Button | null;
+    if (checkButton) {
+        checkButton.disabled = true;
+    }
 
     const progressWindow = new ztoolkit.ProgressWindow("Server连接检查", {
         closeOnClick: false,
@@ -589,6 +701,13 @@ async function checkServerConnection() {
 
         if (healthResponse.status !== 200 || !healthResponse.data) {
             throw new Error(`Server返回错误状态: ${healthResponse.status}`);
+        }
+        if (doc) {
+            setServerVersionState(doc, {
+                version: healthResponse.data.version || "未知",
+                status: "已连接",
+                state: "ok",
+            });
         }
 
         progressWindow.changeLine({
@@ -669,7 +788,8 @@ async function checkServerConnection() {
                 errorMsg = responseMessage
                     ? responseMessage
                     : `Server返回错误: ${error.response.status}`;
-                troubleshooting = "请检查Server地址、当前服务对应的LLM配置，以及Server日志。";
+                troubleshooting =
+                    "请检查Server地址、当前服务对应的LLM配置，以及Server日志。";
             } else if (error.request) {
                 errorMsg = "无法连接到Server";
                 troubleshooting =
@@ -686,6 +806,13 @@ async function checkServerConnection() {
             type: "error",
             progress: 100,
         });
+        if (doc) {
+            setServerVersionState(doc, {
+                version: "—",
+                status: "无法连接",
+                state: "error",
+            });
+        }
 
         setTimeout(() => {
             progressWindow.close();
@@ -693,5 +820,9 @@ async function checkServerConnection() {
                 `✗ 连接失败\n\n错误信息: ${errorMsg}\n\n${troubleshooting}`,
             );
         }, 1500);
+    } finally {
+        if (checkButton) {
+            checkButton.disabled = false;
+        }
     }
 }
