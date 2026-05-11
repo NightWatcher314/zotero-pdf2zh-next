@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zotero PDF2ZH Release"
+  short_description: "Sync plugin, server, README, and tap versions for releases"
+  default_prompt: "Use $zotero-pdf2zh-release to bump zotero-pdf2zh-next to a new shared version and update the Homebrew tap."
