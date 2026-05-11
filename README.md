@@ -1,6 +1,6 @@
 # zotero-pdf2zh-next
 
-一个面向 Zotero 7 的 PDF 翻译插件，配套一个本地 Python 服务来调用 `pdf2zh_next` 完成翻译。
+一个面向 Zotero 7 及以上版本的 PDF 翻译插件，配套一个本地 Python 服务来调用 `pdf2zh_next` 完成翻译。
 
 项目维护重点是：少一点配置负担，稳定地在 Zotero 里提交任务、查看进度、导入结果。
 
@@ -73,9 +73,8 @@ docker compose up --build -d
 
 插件更新：
 
-- 到 GitHub Release 下载新版 `.xpi`。
-- 在 Zotero 插件管理页面重新安装这个 `.xpi`。
-- 重启 Zotero。
+- 在 Zotero 的插件管理页面直接检查更新。
+- 按 Zotero 提示完成更新并重启。
 
 Homebrew 服务端更新：
 
