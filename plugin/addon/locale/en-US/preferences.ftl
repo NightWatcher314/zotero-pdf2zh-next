@@ -19,6 +19,7 @@ pref-runtime = pdf2zh_next Runtime
 pref-ocr = Force OCR workaround
 pref-autoOcr = Auto OCR workaround
 pref-noWatermark = Disable watermark
+pref-disableTermExtraction = Disable term extraction
 pref-fontFamily = Font Family
 
 pref-llmapi-services = Translation Service Configuration

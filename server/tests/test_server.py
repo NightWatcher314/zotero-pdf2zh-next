@@ -280,6 +280,23 @@ class ServerRouteTests(unittest.TestCase):
             )
             self.assertTrue((workspace_dir / "paper.pdf").exists())
             self.assertTrue((workspace_dir / "output").is_dir())
+            self.assertFalse(prepared.request_payload["no_auto_extract_glossary"])
+
+    def test_prepare_translation_request_can_disable_term_extraction(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace_dir = Path(temp_dir)
+            prepared = server_module.prepare_translation_request(
+                {
+                    "fileName": "paper.pdf",
+                    "fileContent": build_pdf_payload(),
+                    "outputModes": ["dual"],
+                    "service": "openai",
+                    "disableTermExtraction": True,
+                },
+                workspace_dir,
+            )
+
+            self.assertTrue(prepared.request_payload["no_auto_extract_glossary"])
 
     def test_create_workspace_dir_uses_translates_folder(self) -> None:
         workspace_dir = server_module.create_workspace_dir("test-job")

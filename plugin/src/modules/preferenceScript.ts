@@ -612,6 +612,8 @@ async function checkServerConnection() {
                 ocr: getPref("ocr")?.toString() || "false",
                 autoOcr: getPref("autoOcr")?.toString() || "true",
                 noWatermark: getPref("noWatermark")?.toString() || "true",
+                disableTermExtraction:
+                    getPref("disableTermExtraction")?.toString() || "false",
                 fontFamily: getPref("fontFamily")?.toString() || "auto",
                 llm_api: llmApi
                     ? {

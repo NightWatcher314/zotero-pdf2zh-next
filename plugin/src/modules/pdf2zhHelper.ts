@@ -47,6 +47,7 @@ export class PDF2zhHelperFactory {
             ocr: config.ocr,
             autoOcr: config.autoOcr,
             noWatermark: config.noWatermark,
+            disableTermExtraction: config.disableTermExtraction,
             fontFamily: config.fontFamily,
         };
         if (llmApiConfig) {
@@ -190,6 +191,8 @@ export class PDF2zhHelperFactory {
             ocr: getPref("ocr")?.toString() || "false",
             autoOcr: getPref("autoOcr")?.toString() || "true",
             noWatermark: getPref("noWatermark")?.toString() || "true",
+            disableTermExtraction:
+                getPref("disableTermExtraction")?.toString() || "false",
             fontFamily: getPref("fontFamily")?.toString() || "auto",
         };
     }

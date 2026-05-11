@@ -258,6 +258,7 @@ def build_settings_input(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         "ocr_workaround": bool(payload.get("ocr")),
         "auto_enable_ocr_workaround": bool(payload.get("auto_ocr")),
+        "no_auto_extract_glossary": bool(payload.get("no_auto_extract_glossary")),
         service: True,
     }
 
@@ -416,6 +417,9 @@ def validate_service_config(payload: dict[str, Any], job_id: str) -> ValidationR
             "ocr": payload.get("ocr", False),
             "auto_ocr": payload.get("auto_ocr", True),
             "no_watermark": payload.get("no_watermark", True),
+            "no_auto_extract_glossary": payload.get(
+                "no_auto_extract_glossary", False
+            ),
             "font_family": payload.get("font_family"),
             "llm_api": payload.get("llm_api") or {},
             "input_path": str(Path(temp_dir) / "validation.pdf"),

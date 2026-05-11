@@ -19,6 +19,7 @@ pref-runtime = pdf2zh_next 运行参数
 pref-ocr = 强制启用OCR workaround
 pref-autoOcr = 自动启用OCR workaround
 pref-noWatermark = 禁用水印
+pref-disableTermExtraction = 禁用术语提取
 pref-fontFamily = 字体族
 
 pref-llmapi-services = 翻译服务配置

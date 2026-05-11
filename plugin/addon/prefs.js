@@ -21,6 +21,7 @@ pref("__prefsPrefix__.fontFamily", "auto");
 pref("__prefsPrefix__.ocr", false);
 pref("__prefsPrefix__.autoOcr", true);
 pref("__prefsPrefix__.noWatermark", true);
+pref("__prefsPrefix__.disableTermExtraction", false);
 
 pref("__prefsPrefix__.dialog-service", "openai");
 pref("__prefsPrefix__.dialog-serviceSelect", "openai");

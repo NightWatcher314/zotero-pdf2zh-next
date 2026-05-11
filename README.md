@@ -204,6 +204,7 @@ brew services start zotero-pdf2zh-next
   "ocr": false,
   "autoOcr": true,
   "noWatermark": true,
+  "disableTermExtraction": false,
   "fontFamily": "auto",
   "llm_api": {
     "model": "gpt-4o-mini",

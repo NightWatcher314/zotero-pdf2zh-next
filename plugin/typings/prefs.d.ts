@@ -25,6 +25,7 @@ declare namespace _ZoteroTypes {
       "ocr": boolean;
       "autoOcr": boolean;
       "noWatermark": boolean;
+      "disableTermExtraction": boolean;
       "dialog-service": string;
       "dialog-serviceSelect": string;
     };

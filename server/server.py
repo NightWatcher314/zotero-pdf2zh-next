@@ -287,6 +287,9 @@ def validate_config_request(data: dict[str, Any]):
         "ocr": parse_bool(data.get("ocr"), False),
         "auto_ocr": parse_bool(data.get("autoOcr"), True),
         "no_watermark": parse_bool(data.get("noWatermark"), True),
+        "no_auto_extract_glossary": parse_bool(
+            data.get("disableTermExtraction"), False
+        ),
         "font_family": normalize_font_family(data.get("fontFamily")),
         "llm_api": data.get("llm_api") or {},
     }
@@ -318,6 +321,9 @@ def prepare_translation_request(
         "ocr": parse_bool(data.get("ocr"), False),
         "auto_ocr": parse_bool(data.get("autoOcr"), True),
         "no_watermark": parse_bool(data.get("noWatermark"), True),
+        "no_auto_extract_glossary": parse_bool(
+            data.get("disableTermExtraction"), False
+        ),
         "font_family": normalize_font_family(data.get("fontFamily")),
         "llm_api": data.get("llm_api") or {},
         "input_path": str(input_path),

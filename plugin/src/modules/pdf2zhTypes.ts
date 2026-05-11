@@ -19,6 +19,7 @@ export interface ServerConfig {
     ocr: string;
     autoOcr: string;
     noWatermark: string;
+    disableTermExtraction: string;
     fontFamily: string;
 }
 
