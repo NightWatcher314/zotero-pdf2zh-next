@@ -3,20 +3,22 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: scripts/release.sh <version> [--no-push] [--no-release] [--tap-path <path>] [--no-tap]
+Usage: scripts/release.sh <version> [--no-push] [--no-release] [--no-pypi] [--tap-path <path>] [--no-tap]
 
 Build, validate, push, and publish a zotero-pdf2zh-next release.
 
 Examples:
   scripts/release.sh 5.1.0
   scripts/release.sh 5.1.1 --no-release
+  scripts/release.sh 5.1.1 --no-pypi
   scripts/release.sh 5.1.1 --tap-path /Users/night/Documents/Codes/homebrew-formula
   scripts/release.sh 5.1.1 --no-tap
 
 The script updates the shared plugin/server version, runs validation, commits
 the version bump, pushes main, creates the v<version> GitHub release with the
-XPI asset using CHANGELOG.md release notes, and updates the fixed "release"
-GitHub release with update.json for Zotero's Check for Updates flow.
+XPI asset using CHANGELOG.md release notes, publishes the server package to
+PyPI, updates the fixed "release" GitHub release with update.json for Zotero's
+Check for Updates flow, and updates the Homebrew tap formula.
 
 Before running, add a CHANGELOG.md section like:
   ## v5.1.1 - YYYY-MM-DD
@@ -25,6 +27,9 @@ Unless --no-push or --no-tap is set, the script also updates the Homebrew tap
 formula after the main repo push/release succeeds. The default tap path is
 ../homebrew-formula when present, then /Users/night/Documents/Codes/homebrew-formula
 when present.
+
+PyPI publishing uses UV_PUBLISH_TOKEN. With direnv, put it in .envrc and run
+direnv allow before release. Use --no-pypi to skip upload.
 EOF
 }
 
@@ -52,6 +57,7 @@ shift
 PUSH=1
 PUBLISH_RELEASE=1
 UPDATE_TAP=1
+PUBLISH_PYPI=1
 TAP_PATH=""
 
 while [[ $# -gt 0 ]]; do
@@ -59,9 +65,13 @@ while [[ $# -gt 0 ]]; do
         --no-push)
             PUSH=0
             PUBLISH_RELEASE=0
+            PUBLISH_PYPI=0
             ;;
         --no-release)
             PUBLISH_RELEASE=0
+            ;;
+        --no-pypi)
+            PUBLISH_PYPI=0
             ;;
         --tap-path)
             [[ $# -ge 2 ]] || die "--tap-path requires a path"
@@ -110,6 +120,10 @@ if [[ "$UPDATE_TAP" -eq 1 && "$PUSH" -eq 1 ]]; then
     require_command curl
     require_command shasum
     require_command ruby
+fi
+
+if [[ "$PUBLISH_PYPI" -eq 1 && -z "${UV_PUBLISH_TOKEN:-}" ]]; then
+    die "UV_PUBLISH_TOKEN is required for PyPI publishing; set it in .envrc and run direnv allow, or use --no-pypi"
 fi
 
 BRANCH="$(git branch --show-current)"
@@ -210,6 +224,10 @@ EOF
             --notes "Stable update manifest used by Zotero Check for Updates." \
             --latest=false
     fi
+fi
+
+if [[ "$PUBLISH_PYPI" -eq 1 ]]; then
+    uv publish server/dist/*
 fi
 
 if [[ "$UPDATE_TAP" -eq 1 && "$PUSH" -eq 1 ]]; then

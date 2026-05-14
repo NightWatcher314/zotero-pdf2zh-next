@@ -33,11 +33,11 @@ Use this workflow:
 4. Commit and push the main repo first.
    The Homebrew formula currently points to a source tarball for a pushed main-repo commit, so do not update the formula before the main repo commit exists on GitHub.
 
-5. Publish to PyPI when requested.
+5. Publish to PyPI.
    The server package name is `zotero-pdf2zh-next`.
-   Local PyPI publishing uses `uv publish server/dist/*`.
+   Unified release publishing uses `uv publish server/dist/*`.
    Keep the token in `.envrc` as `UV_PUBLISH_TOKEN`; `.envrc` must stay ignored by git.
-   Use `scripts/publish-server-pypi.sh <version> --push` when only the server package should be published to PyPI.
+   `scripts/release.sh <version>` publishes XPI, PyPI, and Homebrew by default. Use `--no-pypi` only when intentionally skipping PyPI upload.
 
 6. Sync the Homebrew tap if the release version or source commit changed.
    Update `NightWatcher314/homebrew-formula` file `Formula/zotero-pdf2zh-next.rb`.
@@ -61,5 +61,5 @@ Preferred final output:
 - main repo commit hash
 - tap repo commit hash if changed
 - validation commands run
-- PyPI publish result if `--publish-pypi` was used
+- PyPI publish result, or note if `--no-pypi` was used
 - any remaining manual step, if one exists

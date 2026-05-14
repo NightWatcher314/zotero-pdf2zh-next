@@ -13,7 +13,7 @@
 
 - 新增 `uv tool install --python 3.13 zotero-pdf2zh-next` 作为统一服务端安装方式。
 - 将服务端 Python 包名统一为 `zotero-pdf2zh-next`，为 PyPI 分发做准备。
-- 发布脚本新增本地 PyPI 发布选项 `--publish-pypi`，支持通过 direnv 注入 `UV_PUBLISH_TOKEN`。
+- 发布脚本统一 XPI、PyPI 和 Homebrew 分发，支持通过 direnv 注入 `UV_PUBLISH_TOKEN`。
 - 补充 PyPI 包 README 和维护文档中的发布说明。
 
 ## v5.2.2 - 2026-05-11

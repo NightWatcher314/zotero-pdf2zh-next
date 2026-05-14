@@ -27,14 +27,14 @@ uv tool install --python 3.13 zotero-pdf2zh-next
 zotero-pdf2zh-next
 ```
 
-服务端 Python 包发布到 PyPI，包名也是 `zotero-pdf2zh-next`。PyPI 发布从本地发版脚本执行，token 由 direnv 注入，不写进仓库：
+服务端 Python 包发布到 PyPI，包名也是 `zotero-pdf2zh-next`。PyPI 发布由统一发版脚本执行，token 由 direnv 注入，不写进仓库：
 
 ```bash
 # .envrc
 export UV_PUBLISH_TOKEN="pypi-..."
 
 direnv allow
-scripts/publish-server-pypi.sh 5.2.3 --push
+scripts/release.sh 5.2.4
 ```
 
 服务端入口在 `server/server.py`，真正把插件参数转换为 `pdf2zh_next` 参数的是 `server/pdf2zh_next_service.py`。
@@ -116,9 +116,10 @@ scripts/release.sh 5.2.3
 - 创建主仓库 release commit 并推送。
 - 用 `CHANGELOG.md` 对应章节生成 GitHub Release notes。
 - 上传 Zotero `.xpi` 和固定 `release/update.json`。
+- 用 `uv publish server/dist/*` 发布服务端包到 PyPI。
 - 更新 Homebrew tap formula 并跑 brew 验证。
 
-只发布 PyPI 服务端包时，使用 `scripts/publish-server-pypi.sh <version> --push`。这条路径只处理 `server/`，不构建也不发布 Zotero 插件。
+如果临时不想上传 PyPI，可以传 `--no-pypi`；默认发版会同时发布 XPI、PyPI 和 Homebrew。
 
 Homebrew formula 必须继续 pin `python@3.13`。目前 `pdf2zh_next -> pydantic-core` 依赖链在 Python 3.14 上不应被假定可用。
 
