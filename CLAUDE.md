@@ -76,4 +76,5 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
   - `compose.yaml`
   - the Homebrew tap repo `NightWatcher314/homebrew-formula`, formula `Formula/zotero-pdf2zh-next.rb`
 - The Homebrew formula should stay aligned with the server CLI entrypoint and currently must pin `python@3.13` instead of unversioned `python`, because the `pdf2zh_next -> pydantic-core` dependency chain does not currently build correctly on Python 3.14.
+- The Homebrew tap remote is `https://github.com/NightWatcher314/homebrew-formula.git`; use local path `/Users/night/Documents/Codes/homebrew-formula` when release tooling needs a tap checkout.
 - Do not update only one distribution target if the change affects all startup/install paths.
