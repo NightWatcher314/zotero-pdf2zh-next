@@ -9,6 +9,13 @@
 - 精简 README，移除服务接口和请求体示例等偏技术内容，并补充与原项目的区别。
 - 新增 `docs/development-notes.md`，记录架构边界、偏好页维护、服务端参数映射、测试和发布经验。
 
+## v5.2.3 - 2026-05-14
+
+- 新增 `uv tool install --python 3.13 zotero-pdf2zh-next` 作为统一服务端安装方式。
+- 将服务端 Python 包名统一为 `zotero-pdf2zh-next`，为 PyPI 分发做准备。
+- 发布脚本新增本地 PyPI 发布选项 `--publish-pypi`，支持通过 direnv 注入 `UV_PUBLISH_TOKEN`。
+- 补充 PyPI 包 README 和维护文档中的发布说明。
+
 ## v5.2.2 - 2026-05-11
 
 - 重构 Zotero 插件偏好页，把连接、翻译、输出、运行参数和 LLM 配置分区展示。

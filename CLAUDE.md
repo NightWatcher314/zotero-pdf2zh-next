@@ -68,6 +68,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 - This repo ships the server through multiple targets: local `uv`, Docker, and Homebrew.
 - Keep the plugin and server version aligned. When bumping a release, update both `plugin/package.json` and the server version fields in `server/pyproject.toml` and `server/server.py`.
+- The server is also published to PyPI as `zotero-pdf2zh-next`; release changes that affect the service package should keep local `uv publish` and the `uv tool install --python 3.13 zotero-pdf2zh-next` path working.
 - When changing server packaging or startup behavior, also review:
   - `server/pyproject.toml`
   - `server/uv.lock`

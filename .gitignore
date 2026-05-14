@@ -1,5 +1,6 @@
 .DS_Store
 .env
+.envrc
 .idea/
 .scaffold/
 __pycache__/
@@ -14,6 +15,8 @@ server/.venv/
 server/.pytest_cache/
 server/.mypy_cache/
 server/.coverage
+server/build/
+server/dist/
 server/*.egg-info/
 server/*.pdf
 server/*.csv

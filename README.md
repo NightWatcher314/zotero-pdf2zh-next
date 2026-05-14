@@ -41,14 +41,23 @@ pnpm --dir plugin build
 
 构建产物在 `plugin/build/zotero-pdf2zh-next.xpi`。
 
-## 启动本地服务
+## 安装并启动本地服务
 
-推荐使用 Homebrew：
+推荐使用 `uv tool`，这样 macOS、Windows 和 Linux 可以使用同一个服务端命令：
 
 ```bash
-brew tap NightWatcher314/homebrew-formula
-brew install zotero-pdf2zh-next
-brew services start zotero-pdf2zh-next
+uv tool install --python 3.13 zotero-pdf2zh-next
+zotero-pdf2zh-next
+```
+
+如果还没有安装 `uv`：
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows PowerShell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 默认服务地址是：
@@ -57,7 +66,15 @@ brew services start zotero-pdf2zh-next
 http://127.0.0.1:8890
 ```
 
-也可以直接用源码启动：
+macOS 也可以使用 Homebrew：
+
+```bash
+brew tap NightWatcher314/homebrew-formula
+brew install zotero-pdf2zh-next
+brew services start zotero-pdf2zh-next
+```
+
+开发时可以直接用源码启动：
 
 ```bash
 uv run --directory server zotero-pdf2zh-next
@@ -75,6 +92,12 @@ docker compose up --build -d
 
 - 在 Zotero 的插件管理页面直接检查更新。
 - 按 Zotero 提示完成更新并重启。
+
+`uv tool` 服务端更新：
+
+```bash
+uv tool upgrade zotero-pdf2zh-next
+```
 
 Homebrew 服务端更新：
 

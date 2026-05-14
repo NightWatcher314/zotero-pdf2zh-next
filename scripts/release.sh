@@ -154,7 +154,10 @@ VERSION="$VERSION" perl -0pi -e 's/(当前统一版本:\n\n- `)[^`]+(`)/$1$ENV{V
 
 uv --directory server lock
 uv run --directory server python -m unittest discover -s tests
-pnpm --dir plugin build
+uv build server --out-dir server/dist --clear --no-sources
+PNPM_CONFIG_BLOCK_EXOTIC_SUBDEPS=false \
+    PNPM_CONFIG_DANGEROUSLY_ALLOW_ALL_BUILDS=true \
+    pnpm --dir plugin build
 
 node -e '
 const fs = require("fs");
