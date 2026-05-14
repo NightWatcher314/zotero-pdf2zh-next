@@ -4,12 +4,22 @@
 
 项目维护重点是：少一点配置负担，稳定地在 Zotero 里提交任务、查看进度、导入结果。
 
+## 目录
+
+- [和原项目的区别](#和原项目的区别)
+- [效果预览](#效果预览)
+- [安装插件](#安装插件)
+- [安装并启动本地服务](#安装并启动本地服务)
+- [更新](#更新)
+- [在 Zotero 里使用](#在-zotero-里使用)
+- [License](#license)
+
 ## 和原项目的区别
 
 本项目基于 `guaguastandup/zotero-pdf2zh` 演化而来，但现在按更轻量的方向维护：
 
 - 只保留 Zotero 插件和本地 Python 服务两部分。
-- 服务端统一使用 `uv` 管理，方便本地、Docker 和 Homebrew 安装方式保持一致。
+- 服务端提供 Homebrew 和 `uv tool` 分发，尽量减少手动配置。
 - 支持任务面板、进度显示、取消、重试和结果导入状态。
 - 支持同时输出中文 PDF 和双语 PDF。
 - 偏好页整合插件版本、服务端版本、连接检查和常用翻译选项。
@@ -32,41 +42,9 @@
 5. 选择下载的 `.xpi` 文件。
 6. 重启 Zotero。
 
-如果你从源码构建：
-
-```bash
-pnpm --dir plugin install
-pnpm --dir plugin build
-```
-
-构建产物在 `plugin/build/zotero-pdf2zh-next.xpi`。
-
 ## 安装并启动本地服务
 
-推荐使用 `uv tool`，这样 macOS、Windows 和 Linux 可以使用同一个服务端命令：
-
-```bash
-uv tool install --python 3.13 zotero-pdf2zh-next
-zotero-pdf2zh-next
-```
-
-如果还没有安装 `uv`：
-
-```bash
-# macOS / Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows PowerShell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-默认服务地址是：
-
-```text
-http://127.0.0.1:8890
-```
-
-macOS 也可以使用 Homebrew：
+macOS 推荐使用 Homebrew，这样可以用 `brew services` 管理后台服务：
 
 ```bash
 brew tap NightWatcher314/homebrew-formula
@@ -74,16 +52,23 @@ brew install zotero-pdf2zh-next
 brew services start zotero-pdf2zh-next
 ```
 
-开发时可以直接用源码启动：
+Windows 和 Linux 可以使用 `uv tool`：
 
 ```bash
-uv run --directory server zotero-pdf2zh-next
+uv tool install --python 3.13 zotero-pdf2zh-next
+zotero-pdf2zh-next
 ```
 
-或者用 Docker：
+也可以用 Docker 启动本地服务：
 
 ```bash
 docker compose up --build -d
+```
+
+默认服务地址是：
+
+```text
+http://127.0.0.1:8890
 ```
 
 ## 更新
@@ -93,12 +78,6 @@ docker compose up --build -d
 - 在 Zotero 的插件管理页面直接检查更新。
 - 按 Zotero 提示完成更新并重启。
 
-`uv tool` 服务端更新：
-
-```bash
-uv tool upgrade zotero-pdf2zh-next
-```
-
 Homebrew 服务端更新：
 
 ```bash
@@ -107,11 +86,10 @@ brew upgrade zotero-pdf2zh-next
 brew services restart zotero-pdf2zh-next
 ```
 
-源码方式更新：
+`uv tool` 服务端更新：
 
 ```bash
-git pull
-uv run --directory server zotero-pdf2zh-next
+uv tool upgrade zotero-pdf2zh-next
 ```
 
 ## 在 Zotero 里使用
