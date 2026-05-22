@@ -3,11 +3,15 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
-    image: zotero-pdf2zh-next:local
+      args:
+        UV_INDEX_URL: "${UV_INDEX_URL:-}"
+    image: "${PDF2ZH_IMAGE:-zotero-pdf2zh-next:local}"
     ports:
       - "${PDF2ZH_PORT:-8890}:8890"
     volumes:
-      - ./server/translates:/app/server/translates
+      - "${PDF2ZH_TRANSLATES_DIR:-./server/translates}:/app/server/translates"
+      - "${PDF2ZH_BABELDOC_CACHE_DIR:-./server/cache/babeldoc}:/root/.cache/babeldoc"
+      - "${PDF2ZH_NEXT_CACHE_DIR:-./server/cache/pdf2zh_next}:/root/.cache/pdf2zh_next"
     environment:
       PDF2ZH_LOG_LEVEL: "${PDF2ZH_LOG_LEVEL:-INFO}"
     restart: unless-stopped

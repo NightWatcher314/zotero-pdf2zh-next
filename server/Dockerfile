@@ -6,13 +6,22 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app/server
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
+        libxcb1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY server/pyproject.toml server/uv.lock ./
+ARG UV_INDEX_URL
+ENV UV_INDEX_URL=${UV_INDEX_URL}
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-install-project
+    uv sync --frozen --no-dev --no-install-project
 
 COPY server/server.py server/task_manager.py server/pdf2zh_next_service.py ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
+    uv sync --frozen --no-dev
 
 EXPOSE 8890
 

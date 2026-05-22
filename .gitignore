@@ -16,6 +16,7 @@ server/.pytest_cache/
 server/.mypy_cache/
 server/.coverage
 server/build/
+server/cache/
 server/dist/
 server/*.egg-info/
 server/*.pdf

@@ -65,6 +65,14 @@ zotero-pdf2zh-next
 docker compose up --build -d
 ```
 
+如需在构建时使用自定义 Python 包索引或推送到自己的镜像仓库，可以通过环境变量覆盖默认值：
+
+```bash
+UV_INDEX_URL=https://your-pypi-proxy/index/ \
+PDF2ZH_IMAGE=your-registry/zotero-pdf2zh-next:latest \
+docker compose up --build -d
+```
+
 默认服务地址是：
 
 ```text
