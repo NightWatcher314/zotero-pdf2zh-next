@@ -286,6 +286,7 @@ def validate_config_request(data: dict[str, Any]):
         "pool_size": parse_int(data.get("poolSize"), 0, minimum=0),
         "ocr": parse_bool(data.get("ocr"), False),
         "auto_ocr": parse_bool(data.get("autoOcr"), True),
+        "skip_text_checks": parse_bool(data.get("skipTextChecks"), False),
         "no_watermark": parse_bool(data.get("noWatermark"), True),
         "no_auto_extract_glossary": parse_bool(
             data.get("disableTermExtraction"), False
@@ -320,6 +321,7 @@ def prepare_translation_request(
         "skip_last_pages": parse_int(data.get("skipLastPages"), 0, minimum=0),
         "ocr": parse_bool(data.get("ocr"), False),
         "auto_ocr": parse_bool(data.get("autoOcr"), True),
+        "skip_text_checks": parse_bool(data.get("skipTextChecks"), False),
         "no_watermark": parse_bool(data.get("noWatermark"), True),
         "no_auto_extract_glossary": parse_bool(
             data.get("disableTermExtraction"), False

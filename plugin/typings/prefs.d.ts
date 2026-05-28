@@ -24,6 +24,7 @@ declare namespace _ZoteroTypes {
       "fontFamily": string;
       "ocr": boolean;
       "autoOcr": boolean;
+      "skipTextChecks": boolean;
       "noWatermark": boolean;
       "disableTermExtraction": boolean;
       "dialog-service": string;

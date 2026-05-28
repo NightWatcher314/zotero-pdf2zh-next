@@ -46,6 +46,7 @@ export class PDF2zhHelperFactory {
             poolSize: config.poolSize,
             ocr: config.ocr,
             autoOcr: config.autoOcr,
+            skipTextChecks: config.skipTextChecks,
             noWatermark: config.noWatermark,
             disableTermExtraction: config.disableTermExtraction,
             fontFamily: config.fontFamily,
@@ -190,6 +191,7 @@ export class PDF2zhHelperFactory {
             poolSize: getPref("poolSize")?.toString() || "0",
             ocr: getPref("ocr")?.toString() || "false",
             autoOcr: getPref("autoOcr")?.toString() || "true",
+            skipTextChecks: getPref("skipTextChecks")?.toString() || "false",
             noWatermark: getPref("noWatermark")?.toString() || "true",
             disableTermExtraction:
                 getPref("disableTermExtraction")?.toString() || "false",

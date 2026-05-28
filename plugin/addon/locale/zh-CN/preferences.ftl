@@ -22,6 +22,7 @@ pref-open = 导入后自动打开翻译PDF
 pref-runtime = pdf2zh_next 运行参数
 pref-ocr = 强制启用OCR workaround
 pref-autoOcr = 自动启用OCR workaround
+pref-skipTextChecks = 跳过文本安全检查
 pref-noWatermark = 禁用水印
 pref-disableTermExtraction = 禁用术语提取
 pref-fontFamily = 字体族

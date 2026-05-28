@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,8 @@ from pdf2zh_next.translator import get_translator
 LOGGER = logging.getLogger("zotero_pdf2zh_server.translate")
 ProgressCallback = Callable[[dict[str, Any]], None]
 ConfigReadyCallback = Callable[[BabelDOCConfig], None]
+_SKIP_TEXT_CHECKS = contextvars.ContextVar("skip_text_checks", default=False)
+_TEXT_CHECK_PATCH_INSTALLED = False
 
 SERVICE_FIELD_MAP = {
     "openai": {
@@ -101,6 +104,48 @@ SERVICE_FIELD_MAP = {
         "apiKey": "deepl_auth_key",
     },
 }
+
+
+def install_text_check_bypass() -> None:
+    global _TEXT_CHECK_PATCH_INSTALLED
+    if _TEXT_CHECK_PATCH_INSTALLED:
+        return
+
+    import babeldoc.format.pdf.high_level as babeldoc_high_level
+    from babeldoc.format.pdf.document_il.midend import automatic_term_extractor
+    from babeldoc.format.pdf.document_il.midend import il_translator_llm_only
+    from babeldoc.format.pdf.document_il.midend import paragraph_finder
+    from babeldoc.format.pdf.document_il.midend.paragraph_finder import (
+        ParagraphFinder,
+    )
+    from babeldoc.format.pdf.document_il.utils import paragraph_helper
+
+    original_check_cid_char = babeldoc_high_level.check_cid_char
+    original_check_cid_paragraph = ParagraphFinder.check_cid_paragraph
+    original_is_cid_paragraph = paragraph_helper.is_cid_paragraph
+
+    def check_cid_char(document):
+        if _SKIP_TEXT_CHECKS.get():
+            return False
+        return original_check_cid_char(document)
+
+    def check_cid_paragraph(self, document):
+        if _SKIP_TEXT_CHECKS.get():
+            return False
+        return original_check_cid_paragraph(self, document)
+
+    def is_cid_paragraph(paragraph):
+        if _SKIP_TEXT_CHECKS.get():
+            return False
+        return original_is_cid_paragraph(paragraph)
+
+    babeldoc_high_level.check_cid_char = check_cid_char
+    ParagraphFinder.check_cid_paragraph = check_cid_paragraph
+    paragraph_helper.is_cid_paragraph = is_cid_paragraph
+    paragraph_finder.is_cid_paragraph = is_cid_paragraph
+    automatic_term_extractor.is_cid_paragraph = is_cid_paragraph
+    il_translator_llm_only.is_cid_paragraph = is_cid_paragraph
+    _TEXT_CHECK_PATCH_INSTALLED = True
 
 
 @dataclass(frozen=True)
@@ -346,6 +391,7 @@ def collect_output_files(
 
     return files
 
+
 async def translate_pdf_with_callbacks(
     payload: dict[str, Any],
     job_id: str,
@@ -355,48 +401,57 @@ async def translate_pdf_with_callbacks(
     input_path = Path(payload["input_path"])
     output_dir = Path(payload["output_dir"])
     output_modes = payload["output_modes"]
+    skip_text_checks = bool(payload.get("skip_text_checks"))
 
-    settings = create_runtime_settings(payload)
-    translation_config = create_babeldoc_config(settings, input_path)
-    if on_config_ready is not None:
-        on_config_ready(translation_config)
+    if skip_text_checks:
+        install_text_check_bypass()
+        LOGGER.warning("[%s] skipping BabelDOC CID text extraction checks", job_id)
 
-    progress_logger = ProgressLogger(job_id)
-    LOGGER.info(
-        "[%s] translation started: file=%s service=%s output_modes=%s",
-        job_id,
-        input_path.name,
-        payload["service"],
-        ",".join(output_modes),
-    )
+    token = _SKIP_TEXT_CHECKS.set(skip_text_checks)
+    try:
+        settings = create_runtime_settings(payload)
+        translation_config = create_babeldoc_config(settings, input_path)
+        if on_config_ready is not None:
+            on_config_ready(translation_config)
 
-    async for event in babeldoc_translate(translation_config):
-        progress_logger.log(event)
-        if progress_callback is not None:
-            progress_callback(event)
-
-        if event["type"] == "error":
-            raise RuntimeError(
-                explain_service_error(
-                    event.get("error") or "pdf2zh_next translation failed"
-                )
-            )
-        if event["type"] != "finish":
-            continue
-
-        result = event["translate_result"]
-        files = collect_output_files(
-            result,
-            output_dir,
-            output_modes,
-            input_path.name,
-        )
+        progress_logger = ProgressLogger(job_id)
         LOGGER.info(
-            "[%s] output ready: %s",
+            "[%s] translation started: file=%s service=%s output_modes=%s",
             job_id,
-            ", ".join(file.filename for file in files.values()),
+            input_path.name,
+            payload["service"],
+            ",".join(output_modes),
         )
-        return TranslationResult(files=files)
+
+        async for event in babeldoc_translate(translation_config):
+            progress_logger.log(event)
+            if progress_callback is not None:
+                progress_callback(event)
+
+            if event["type"] == "error":
+                raise RuntimeError(
+                    explain_service_error(
+                        event.get("error") or "pdf2zh_next translation failed"
+                    )
+                )
+            if event["type"] != "finish":
+                continue
+
+            result = event["translate_result"]
+            files = collect_output_files(
+                result,
+                output_dir,
+                output_modes,
+                input_path.name,
+            )
+            LOGGER.info(
+                "[%s] output ready: %s",
+                job_id,
+                ", ".join(file.filename for file in files.values()),
+            )
+            return TranslationResult(files=files)
+    finally:
+        _SKIP_TEXT_CHECKS.reset(token)
 
     raise RuntimeError("pdf2zh_next finished without producing a result")
 
