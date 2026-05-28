@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import sys
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 SERVER_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SERVER_DIR))
 
-from pdf2zh_next_service import _SKIP_TEXT_CHECKS
 from pdf2zh_next_service import build_settings_input
 from pdf2zh_next_service import install_text_check_bypass
+from pdf2zh_next_service import set_text_checks_skipped
 
 
 class PDF2zhNextServiceTests(unittest.TestCase):
@@ -36,13 +37,29 @@ class PDF2zhNextServiceTests(unittest.TestCase):
         )
 
         install_text_check_bypass()
-        token = _SKIP_TEXT_CHECKS.set(True)
+        previous = set_text_checks_skipped(True)
         try:
             self.assertFalse(babeldoc_high_level.check_cid_char(object()))
             self.assertFalse(ParagraphFinder.check_cid_paragraph(object(), object()))
             self.assertFalse(il_translator_llm_only.is_cid_paragraph(object()))
         finally:
-            _SKIP_TEXT_CHECKS.reset(token)
+            set_text_checks_skipped(previous)
+
+    def test_text_check_bypass_reaches_executor_threads(self) -> None:
+        import babeldoc.format.pdf.high_level as babeldoc_high_level
+
+        install_text_check_bypass()
+        previous = set_text_checks_skipped(True)
+        try:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                self.assertFalse(
+                    executor.submit(
+                        babeldoc_high_level.check_cid_char,
+                        object(),
+                    ).result()
+                )
+        finally:
+            set_text_checks_skipped(previous)
 
 
 if __name__ == "__main__":

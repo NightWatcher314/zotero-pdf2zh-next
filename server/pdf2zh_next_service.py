@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import contextvars
+import asyncio
 import logging
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -18,7 +19,9 @@ from pdf2zh_next.translator import get_translator
 LOGGER = logging.getLogger("zotero_pdf2zh_server.translate")
 ProgressCallback = Callable[[dict[str, Any]], None]
 ConfigReadyCallback = Callable[[BabelDOCConfig], None]
-_SKIP_TEXT_CHECKS = contextvars.ContextVar("skip_text_checks", default=False)
+_TEXT_CHECK_TRANSLATION_LOCK = threading.Lock()
+_TEXT_CHECK_PATCH_LOCK = threading.Lock()
+_SKIP_TEXT_CHECKS_ENABLED = False
 _TEXT_CHECK_PATCH_INSTALLED = False
 
 SERVICE_FIELD_MAP = {
@@ -108,44 +111,55 @@ SERVICE_FIELD_MAP = {
 
 def install_text_check_bypass() -> None:
     global _TEXT_CHECK_PATCH_INSTALLED
-    if _TEXT_CHECK_PATCH_INSTALLED:
-        return
+    with _TEXT_CHECK_PATCH_LOCK:
+        if _TEXT_CHECK_PATCH_INSTALLED:
+            return
 
-    import babeldoc.format.pdf.high_level as babeldoc_high_level
-    from babeldoc.format.pdf.document_il.midend import automatic_term_extractor
-    from babeldoc.format.pdf.document_il.midend import il_translator_llm_only
-    from babeldoc.format.pdf.document_il.midend import paragraph_finder
-    from babeldoc.format.pdf.document_il.midend.paragraph_finder import (
-        ParagraphFinder,
-    )
-    from babeldoc.format.pdf.document_il.utils import paragraph_helper
+        import babeldoc.format.pdf.high_level as babeldoc_high_level
+        from babeldoc.format.pdf.document_il.midend import automatic_term_extractor
+        from babeldoc.format.pdf.document_il.midend import il_translator_llm_only
+        from babeldoc.format.pdf.document_il.midend import paragraph_finder
+        from babeldoc.format.pdf.document_il.midend.paragraph_finder import (
+            ParagraphFinder,
+        )
+        from babeldoc.format.pdf.document_il.utils import paragraph_helper
 
-    original_check_cid_char = babeldoc_high_level.check_cid_char
-    original_check_cid_paragraph = ParagraphFinder.check_cid_paragraph
-    original_is_cid_paragraph = paragraph_helper.is_cid_paragraph
+        original_check_cid_char = babeldoc_high_level.check_cid_char
+        original_check_cid_paragraph = ParagraphFinder.check_cid_paragraph
+        original_is_cid_paragraph = paragraph_helper.is_cid_paragraph
 
-    def check_cid_char(document):
-        if _SKIP_TEXT_CHECKS.get():
-            return False
-        return original_check_cid_char(document)
+        def text_checks_skipped() -> bool:
+            return _SKIP_TEXT_CHECKS_ENABLED
 
-    def check_cid_paragraph(self, document):
-        if _SKIP_TEXT_CHECKS.get():
-            return False
-        return original_check_cid_paragraph(self, document)
+        def check_cid_char(document):
+            if text_checks_skipped():
+                return False
+            return original_check_cid_char(document)
 
-    def is_cid_paragraph(paragraph):
-        if _SKIP_TEXT_CHECKS.get():
-            return False
-        return original_is_cid_paragraph(paragraph)
+        def check_cid_paragraph(self, document):
+            if text_checks_skipped():
+                return False
+            return original_check_cid_paragraph(self, document)
 
-    babeldoc_high_level.check_cid_char = check_cid_char
-    ParagraphFinder.check_cid_paragraph = check_cid_paragraph
-    paragraph_helper.is_cid_paragraph = is_cid_paragraph
-    paragraph_finder.is_cid_paragraph = is_cid_paragraph
-    automatic_term_extractor.is_cid_paragraph = is_cid_paragraph
-    il_translator_llm_only.is_cid_paragraph = is_cid_paragraph
-    _TEXT_CHECK_PATCH_INSTALLED = True
+        def is_cid_paragraph(paragraph):
+            if text_checks_skipped():
+                return False
+            return original_is_cid_paragraph(paragraph)
+
+        babeldoc_high_level.check_cid_char = check_cid_char
+        ParagraphFinder.check_cid_paragraph = check_cid_paragraph
+        paragraph_helper.is_cid_paragraph = is_cid_paragraph
+        paragraph_finder.is_cid_paragraph = is_cid_paragraph
+        automatic_term_extractor.is_cid_paragraph = is_cid_paragraph
+        il_translator_llm_only.is_cid_paragraph = is_cid_paragraph
+        _TEXT_CHECK_PATCH_INSTALLED = True
+
+
+def set_text_checks_skipped(skip: bool) -> bool:
+    global _SKIP_TEXT_CHECKS_ENABLED
+    previous = _SKIP_TEXT_CHECKS_ENABLED
+    _SKIP_TEXT_CHECKS_ENABLED = skip
+    return previous
 
 
 @dataclass(frozen=True)
@@ -407,7 +421,8 @@ async def translate_pdf_with_callbacks(
         install_text_check_bypass()
         LOGGER.warning("[%s] skipping BabelDOC CID text extraction checks", job_id)
 
-    token = _SKIP_TEXT_CHECKS.set(skip_text_checks)
+    await asyncio.to_thread(_TEXT_CHECK_TRANSLATION_LOCK.acquire)
+    previous_skip_text_checks = set_text_checks_skipped(skip_text_checks)
     try:
         settings = create_runtime_settings(payload)
         translation_config = create_babeldoc_config(settings, input_path)
@@ -451,7 +466,8 @@ async def translate_pdf_with_callbacks(
             )
             return TranslationResult(files=files)
     finally:
-        _SKIP_TEXT_CHECKS.reset(token)
+        set_text_checks_skipped(previous_skip_text_checks)
+        _TEXT_CHECK_TRANSLATION_LOCK.release()
 
     raise RuntimeError("pdf2zh_next finished without producing a result")
 
