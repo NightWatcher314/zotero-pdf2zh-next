@@ -24,6 +24,51 @@ export interface ServerConfig {
     fontFamily: string;
 }
 
+export interface DiagnosticMessage {
+    code: string;
+    severity: "info" | "warning" | "error";
+    message: string;
+    suggestion?: string;
+}
+
+export interface ServerHealthResponse {
+    status?: string;
+    version?: string;
+    pythonVersion?: string;
+    pdf2zhVersion?: string;
+    babeldocVersion?: string;
+    workspace?: {
+        path?: string;
+        writable?: boolean;
+        freeBytes?: number;
+    };
+    tasks?: {
+        total?: number;
+        active?: number;
+        failed?: number;
+        completed?: number;
+    };
+}
+
+export interface ValidateConfigResponse {
+    status?: string;
+    service?: string;
+    model?: string | null;
+    message?: string;
+    diagnostics?: DiagnosticMessage[];
+    liveTest?: {
+        enabled: boolean;
+        ok?: boolean;
+        message?: string;
+    };
+}
+
+export interface ServerErrorResponse {
+    status?: "error" | string;
+    message?: string;
+    diagnostics?: DiagnosticMessage[];
+}
+
 export interface PDFOperationOptions {
     rename: boolean;
     openAfterProcess: boolean;
@@ -41,6 +86,7 @@ export interface ServerTaskSnapshot {
     stageProgress: number;
     overallProgress: number;
     error: string | null;
+    errorDiagnostics?: DiagnosticMessage[];
     attempt?: number;
     resultFiles: Partial<Record<OutputMode, string>>;
     createdAt: string;

@@ -34,3 +34,4 @@ pref-llmapi-edit = 编辑
 pref-llmapi-activate = 激活
 pref-llmapi-totop = 置顶
 pref-check-connection = 检查连接与配置
+pref-live-api-test = 同时执行真实 API 测试（会发送一条短翻译请求）

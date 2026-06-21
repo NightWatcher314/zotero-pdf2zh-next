@@ -14,6 +14,7 @@ from typing import Any
 from typing import Callable
 
 from pdf2zh_next_service import TranslationOutputFile
+from pdf2zh_next_service import diagnose_service_error
 from pdf2zh_next_service import explain_service_error
 from pdf2zh_next_service import translate_pdf_with_callbacks
 
@@ -40,6 +41,7 @@ class TaskRecord:
     stage_progress: float = 0.0
     overall_progress: float = 0.0
     error: str | None = None
+    error_diagnostics: list[dict[str, str]] = field(default_factory=list)
     result_files: dict[str, TranslationOutputFile] = field(default_factory=dict)
     attempt: int = 1
     created_at: str = field(default_factory=utc_now_iso)
@@ -60,6 +62,7 @@ class TaskRecord:
             "stageProgress": round(self.stage_progress, 1),
             "overallProgress": round(self.overall_progress, 1),
             "error": self.error,
+            "errorDiagnostics": self.error_diagnostics,
             "attempt": self.attempt,
             "resultFiles": {
                 output_mode: output_file.filename
@@ -230,6 +233,7 @@ class TaskManager:
             record.stage_progress = 0.0
             record.overall_progress = 0.0
             record.error = None
+            record.error_diagnostics = []
             record.result_files = {}
             record.attempt += 1
             record.cancel_requested = False
@@ -366,7 +370,10 @@ class TaskManager:
                 )
 
             if event_type == "error":
-                record.error = str(event.get("error") or "translation failed")
+                record.error = explain_service_error(
+                    str(event.get("error") or "translation failed")
+                )
+                record.error_diagnostics = diagnose_service_error(record.error)
 
             record.updated_at = utc_now_iso()
             snapshot = record.to_dict()
@@ -384,6 +391,9 @@ class TaskManager:
             record.status = "cancelled" if cancelled else "failed"
             record.stage = "cancelled" if cancelled else "failed"
             record.error = None if cancelled else error_message
+            record.error_diagnostics = (
+                [] if cancelled else diagnose_service_error(error_message)
+            )
             record.updated_at = utc_now_iso()
             workspace_dir = record.workspace_dir
             snapshot = record.to_dict()
@@ -486,6 +496,7 @@ class TaskManager:
             "stage_progress": record.stage_progress,
             "overall_progress": record.overall_progress,
             "error": record.error,
+            "error_diagnostics": record.error_diagnostics,
             "attempt": record.attempt,
             "created_at": record.created_at,
             "updated_at": record.updated_at,
@@ -541,6 +552,7 @@ class TaskManager:
                     0.0,
                 ),
                 error=payload.get("error"),
+                error_diagnostics=list(payload.get("error_diagnostics") or []),
                 result_files=result_files,
                 attempt=TaskManager._coerce_int(payload.get("attempt"), 1),
                 created_at=str(payload.get("created_at") or utc_now_iso()),

@@ -39,6 +39,11 @@
     .output-options, .toggle-grid { display: grid; grid-template-columns:
     repeat(2, minmax(220px, 1fr)); gap: 10px 18px; } .output-choice, .toggle-row
     { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+    .connection-result { margin-top: 10px; padding: 8px 10px; border: 1px
+    solid color-mix(in srgb, FieldText 14%, transparent); border-radius: 6px;
+    background: color-mix(in srgb, Field 94%, FieldText 6%); white-space:
+    pre-wrap; line-height: 1.45; font: menu; } .connection-result[hidden] {
+    display: none; }
     .llm-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
     .virtualized-table-container { height: 320px; max-height: 320px; border: 1px
     solid color-mix(in srgb, FieldText 14%, transparent); border-radius: 6px;
@@ -121,6 +126,21 @@
                 data-l10n-id="pref-check-connection"
             />
         </html:div>
+        <html:div class="toggle-row">
+            <html:input
+                id="zotero-prefpane-__addonRef__-liveApiTest"
+                type="checkbox"
+            />
+            <html:label
+                for="zotero-prefpane-__addonRef__-liveApiTest"
+                data-l10n-id="pref-live-api-test"
+            />
+        </html:div>
+        <html:pre
+            id="zotero-prefpane-__addonRef__-connectionResult"
+            class="connection-result"
+            hidden="hidden"
+        />
     </html:section>
 
     <html:section class="pref-section">

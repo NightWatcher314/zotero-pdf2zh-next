@@ -4,11 +4,13 @@ import argparse
 import asyncio
 import base64
 import binascii
+import importlib.metadata
 import json
 import logging
 import os
 import queue
 import shutil
+import sys
 import uuid
 from dataclasses import dataclass
 from io import BytesIO
@@ -16,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from flask import Flask, Response, jsonify, request, send_file, stream_with_context
+from pdf2zh_next_service import diagnose_service_error
 from pdf2zh_next_service import explain_service_error
 from pdf2zh_next_service import translate_pdf_with_callbacks
 from pdf2zh_next_service import validate_service_config
@@ -43,26 +46,23 @@ def create_app() -> Flask:
     app = Flask(__name__)
 
     @app.get("/health")
-    def health() -> tuple[dict[str, str], int]:
-        return {"status": "ok", "version": VERSION}, 200
+    def health() -> tuple[dict[str, Any], int]:
+        return build_health_payload(), 200
 
     @app.post("/translate")
     def translate():
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
-            return jsonify({"status": "error", "message": "Expected a JSON body"}), 400
+            return error_response("Expected a JSON body", 400)
 
         try:
             pdf_bytes, filename, output_mode = translate_pdf_request(data)
         except RequestValidationError as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 400
+            return error_response(str(exc), 400)
         except RuntimeError as exc:
-            return (
-                jsonify({"status": "error", "message": explain_service_error(exc)}),
-                502,
-            )
+            return error_response(explain_service_error(exc), 502)
         except Exception as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 500
+            return error_response(str(exc), 500)
 
         response = send_file(
             BytesIO(pdf_bytes),
@@ -78,26 +78,25 @@ def create_app() -> Flask:
     def validate_config():
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
-            return jsonify({"status": "error", "message": "Expected a JSON body"}), 400
+            return error_response("Expected a JSON body", 400)
 
         try:
             result = validate_config_request(data)
         except RequestValidationError as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 400
+            return error_response(str(exc), 400)
         except RuntimeError as exc:
-            return (
-                jsonify({"status": "error", "message": explain_service_error(exc)}),
-                502,
-            )
+            return error_response(explain_service_error(exc), 502)
         except Exception as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 500
+            return error_response(str(exc), 500)
 
         return (
             jsonify(
                 {
-                    "status": "ok",
+                    "status": result.status,
                     "service": result.service,
                     "model": result.model,
+                    "diagnostics": result.diagnostics,
+                    "liveTest": result.live_test,
                 }
             ),
             200,
@@ -110,7 +109,7 @@ def create_app() -> Flask:
 
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
-            return jsonify({"status": "error", "message": "Expected a JSON body"}), 400
+            return error_response("Expected a JSON body", 400)
 
         task_id = uuid.uuid4().hex[:12]
         workspace_dir: Path | None = None
@@ -127,10 +126,10 @@ def create_app() -> Flask:
             )
         except RequestValidationError as exc:
             remove_workspace_dir(workspace_dir)
-            return jsonify({"status": "error", "message": str(exc)}), 400
+            return error_response(str(exc), 400)
         except Exception as exc:
             remove_workspace_dir(workspace_dir)
-            return jsonify({"status": "error", "message": str(exc)}), 500
+            return error_response(str(exc), 500)
 
         return jsonify({"status": "ok", "task": task}), 202
 
@@ -138,7 +137,7 @@ def create_app() -> Flask:
     def task_detail(task_id: str):
         task = TASK_MANAGER.get_task(task_id)
         if task is None:
-            return jsonify({"status": "error", "message": "Task not found"}), 404
+            return error_response("Task not found", 404)
         return jsonify({"status": "ok", "task": task}), 200
 
     @app.delete("/tasks/<task_id>")
@@ -146,16 +145,16 @@ def create_app() -> Flask:
         try:
             task = TASK_MANAGER.delete_task(task_id)
         except ValueError as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 409
+            return error_response(str(exc), 409)
         if task is None:
-            return jsonify({"status": "error", "message": "Task not found"}), 404
+            return error_response("Task not found", 404)
         return jsonify({"status": "ok", "task": task}), 200
 
     @app.post("/tasks/<task_id>/cancel")
     def cancel_task(task_id: str):
         task = TASK_MANAGER.cancel_task(task_id)
         if task is None:
-            return jsonify({"status": "error", "message": "Task not found"}), 404
+            return error_response("Task not found", 404)
         return jsonify({"status": "ok", "task": task}), 200
 
     @app.post("/tasks/<task_id>/retry")
@@ -163,9 +162,9 @@ def create_app() -> Flask:
         try:
             task = TASK_MANAGER.retry_task(task_id)
         except ValueError as exc:
-            return jsonify({"status": "error", "message": str(exc)}), 409
+            return error_response(str(exc), 409)
         if task is None:
-            return jsonify({"status": "error", "message": "Task not found"}), 404
+            return error_response("Task not found", 404)
         return jsonify({"status": "ok", "task": task}), 202
 
     @app.post("/tasks/clear-failed")
@@ -207,28 +206,18 @@ def create_app() -> Flask:
             try:
                 requested_mode = normalize_output_mode_value(requested_mode)
             except RequestValidationError as exc:
-                return jsonify({"status": "error", "message": str(exc)}), 400
+                return error_response(str(exc), 400)
 
         result = TASK_MANAGER.get_result_file(task_id, requested_mode)
         if result is None:
-            return jsonify({"status": "error", "message": "Task not found"}), 404
+            return error_response("Task not found", 404)
 
         task_record, result_file = result
         if task_record.status != "completed":
-            return (
-                jsonify({"status": "error", "message": "Task result is not ready"}),
-                409,
-            )
+            return error_response("Task result is not ready", 409)
         if result_file is None:
-            return (
-                jsonify(
-                    {
-                        "status": "error",
-                        "message": (
-                            "Output mode is required when multiple result files exist"
-                        ),
-                    }
-                ),
+            return error_response(
+                "Output mode is required when multiple result files exist",
                 400,
             )
 
@@ -292,6 +281,7 @@ def validate_config_request(data: dict[str, Any]):
             data.get("disableTermExtraction"), False
         ),
         "font_family": normalize_font_family(data.get("fontFamily")),
+        "live_test": parse_bool(data.get("liveTest"), False),
         "llm_api": data.get("llm_api") or {},
     }
     LOGGER.info("[%s] checking config: service=%s", job_id, service)
@@ -458,6 +448,80 @@ def parse_int(value: Any, default: int, minimum: int = 0) -> int:
     except (TypeError, ValueError):
         return default
     return max(parsed, minimum)
+
+
+def error_response(message: str, status_code: int):
+    return (
+        jsonify(
+            {
+                "status": "error",
+                "message": message,
+                "diagnostics": diagnose_service_error(message),
+            }
+        ),
+        status_code,
+    )
+
+
+def build_health_payload() -> dict[str, Any]:
+    workspace = build_workspace_health()
+    task_stats = build_task_stats()
+    return {
+        "status": "ok" if workspace.get("writable") else "degraded",
+        "version": VERSION,
+        "pythonVersion": sys.version.split()[0],
+        "pdf2zhVersion": package_version("pdf2zh_next"),
+        "babeldocVersion": package_version("babeldoc"),
+        "workspace": workspace,
+        "tasks": task_stats,
+    }
+
+
+def build_workspace_health() -> dict[str, Any]:
+    writable = False
+    error: str | None = None
+    free_bytes: int | None = None
+    probe_path = TRANSLATES_DIR / ".healthcheck"
+    try:
+        TRANSLATES_DIR.mkdir(parents=True, exist_ok=True)
+        probe_path.write_text("ok", encoding="utf-8")
+        probe_path.unlink(missing_ok=True)
+        writable = True
+    except OSError as exc:
+        error = str(exc)
+
+    try:
+        disk_path = TRANSLATES_DIR if TRANSLATES_DIR.exists() else TRANSLATES_DIR.parent
+        free_bytes = shutil.disk_usage(disk_path).free
+    except OSError as exc:
+        error = str(exc) if error is None else f"{error}; {exc}"
+
+    payload: dict[str, Any] = {
+        "path": str(TRANSLATES_DIR),
+        "writable": writable,
+        "freeBytes": free_bytes,
+    }
+    if error:
+        payload["error"] = error
+    return payload
+
+
+def build_task_stats() -> dict[str, int]:
+    tasks = TASK_MANAGER.list_tasks()
+    active_statuses = {"queued", "running", "cancelling"}
+    return {
+        "total": len(tasks),
+        "active": sum(1 for task in tasks if task.get("status") in active_statuses),
+        "failed": sum(1 for task in tasks if task.get("status") == "failed"),
+        "completed": sum(1 for task in tasks if task.get("status") == "completed"),
+    }
+
+
+def package_version(package_name: str) -> str | None:
+    try:
+        return importlib.metadata.version(package_name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
 
 
 app = create_app()

@@ -7,19 +7,13 @@ import {
     emptyLLMApi,
     formatExtraDataForDisplay,
 } from "./llmApiManager";
+import type {
+    DiagnosticMessage,
+    ServerErrorResponse,
+    ServerHealthResponse,
+    ValidateConfigResponse,
+} from "./pdf2zhTypes";
 import axios from "axios";
-
-type ValidateConfigResponse = {
-    status?: string;
-    service?: string;
-    model?: string | null;
-    message?: string;
-};
-
-type HealthResponse = {
-    status?: string;
-    version?: string;
-};
 
 function normalizeServiceName(value: string): string {
     return value.trim().toLowerCase().replace(/[-_]/g, "");
@@ -433,7 +427,7 @@ async function refreshServerVersion() {
     });
 
     try {
-        const response = await axios.get<HealthResponse>(
+        const response = await axios.get<ServerHealthResponse>(
             `${serverUrl}/health`,
             {
                 timeout: 4000,
@@ -442,8 +436,17 @@ async function refreshServerVersion() {
         );
         setServerVersionState(doc, {
             version: response.data?.version || "未知",
-            status: response.data?.status === "ok" ? "已连接" : "状态未知",
-            state: response.data?.status === "ok" ? "ok" : "unknown",
+            status:
+                response.data?.status === "ok"
+                    ? "已连接"
+                    : response.data?.status === "degraded"
+                      ? "已连接，有警告"
+                      : "状态未知",
+            state:
+                response.data?.status === "ok" ||
+                response.data?.status === "degraded"
+                    ? "ok"
+                    : "unknown",
         });
     } catch {
         setServerVersionState(doc, {
@@ -479,6 +482,21 @@ function setText(doc: Document, idSuffix: string, value: string) {
     }
 }
 
+function setConnectionResult(doc: Document | undefined, value: string) {
+    const element = doc?.getElementById(
+        `zotero-prefpane-${config.addonRef}-connectionResult`,
+    );
+    if (!element) {
+        return;
+    }
+    element.textContent = value;
+    if (value) {
+        element.removeAttribute("hidden");
+    } else {
+        element.setAttribute("hidden", "hidden");
+    }
+}
+
 function setButtonDisabled(button: XUL.Button, disabled: boolean) {
     if (button) {
         button.disabled = disabled;
@@ -511,6 +529,127 @@ function getLLMApiSelection() {
     }
     const keys = addon.data.llmApis?.cachedKeys || [];
     return Array.from(indices).map((i) => keys[i]) || [];
+}
+
+function formatBytes(bytes?: number): string {
+    if (typeof bytes !== "number" || !Number.isFinite(bytes)) {
+        return "未知";
+    }
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+    }
+    const precision = unitIndex === 0 ? 0 : 1;
+    return `${value.toFixed(precision)} ${units[unitIndex]}`;
+}
+
+function formatDiagnostics(diagnostics?: DiagnosticMessage[]): string {
+    if (!diagnostics?.length) {
+        return "";
+    }
+    const lines = ["诊断信息:"];
+    diagnostics.forEach((diagnostic) => {
+        lines.push(
+            `- [${diagnostic.severity}] ${diagnostic.code}: ${diagnostic.message}`,
+        );
+        if (diagnostic.suggestion) {
+            lines.push(`  建议: ${diagnostic.suggestion}`);
+        }
+    });
+    return lines.join("\n");
+}
+
+function getDiagnosticSummary(diagnostics?: DiagnosticMessage[]): string {
+    if (!diagnostics?.length) {
+        return "";
+    }
+    return diagnostics
+        .map((diagnostic) => `${diagnostic.severity}:${diagnostic.code}`)
+        .join(", ");
+}
+
+function hasCheckIssues(validateData: ValidateConfigResponse): boolean {
+    return (
+        validateData.liveTest?.ok === false ||
+        validateData.diagnostics?.some(
+            (diagnostic) =>
+                diagnostic.severity === "warning" ||
+                diagnostic.severity === "error",
+        ) === true
+    );
+}
+
+function formatHealthDetails(healthData: ServerHealthResponse): string[] {
+    const workspace = healthData.workspace;
+    const tasks = healthData.tasks;
+    return [
+        `服务端状态: ${healthData.status || "未知"}`,
+        `服务端版本: ${healthData.version || "未知"}`,
+        `Python: ${healthData.pythonVersion || "未知"}`,
+        `pdf2zh_next: ${healthData.pdf2zhVersion || "未知"}`,
+        `BabelDOC: ${healthData.babeldocVersion || "未知"}`,
+        `Workspace: ${workspace?.path || "未知"}`,
+        `Workspace可写: ${
+            typeof workspace?.writable === "boolean"
+                ? workspace.writable
+                    ? "是"
+                    : "否"
+                : "未知"
+        }`,
+        `Workspace剩余空间: ${formatBytes(workspace?.freeBytes)}`,
+        `任务统计: total=${tasks?.total ?? "未知"}, active=${
+            tasks?.active ?? "未知"
+        }, failed=${tasks?.failed ?? "未知"}, completed=${
+            tasks?.completed ?? "未知"
+        }`,
+    ];
+}
+
+function formatLiveTest(validateData: ValidateConfigResponse): string {
+    const liveTest = validateData.liveTest;
+    if (!liveTest?.enabled) {
+        return "Live API测试: 未启用";
+    }
+    const state =
+        typeof liveTest.ok === "boolean"
+            ? liveTest.ok
+                ? "通过"
+                : "未通过"
+            : "未返回结果";
+    return `Live API测试: ${state}${
+        liveTest.message ? ` (${liveTest.message})` : ""
+    }`;
+}
+
+function formatCheckReport(
+    serverUrl: string,
+    healthData: ServerHealthResponse,
+    validateData: ValidateConfigResponse,
+    service: string,
+): string {
+    const lines = [
+        hasCheckIssues(validateData) ? "检查完成，存在需要关注的问题" : "检查通过",
+        `Server地址: ${serverUrl}`,
+        ...formatHealthDetails(healthData),
+        `翻译服务: ${validateData.service || service}`,
+        `模型: ${validateData.model || "未返回"}`,
+        formatLiveTest(validateData),
+    ];
+    const diagnostics = formatDiagnostics(validateData.diagnostics);
+    if (diagnostics) {
+        lines.push("", diagnostics);
+    }
+    return lines.join("\n");
+}
+
+function getServerErrorData(data: unknown): ServerErrorResponse {
+    if (!data || typeof data !== "object") {
+        return {};
+    }
+    return data as ServerErrorResponse;
 }
 
 const lang_map = {
@@ -679,6 +818,10 @@ async function checkServerConnection() {
     const checkButton = doc?.getElementById(
         `zotero-prefpane-${config.addonRef}-checkConnection`,
     ) as XUL.Button | null;
+    const liveApiTestCheckbox = doc?.getElementById(
+        `zotero-prefpane-${config.addonRef}-liveApiTest`,
+    ) as HTMLInputElement | null;
+    const liveTest = Boolean(liveApiTestCheckbox?.checked);
     if (checkButton) {
         checkButton.disabled = true;
     }
@@ -694,10 +837,13 @@ async function checkServerConnection() {
     progressWindow.show();
 
     try {
-        const healthResponse = await axios.get(`${serverUrl}/health`, {
-            timeout: 10000,
-            headers: { "Content-Type": "application/json" },
-        });
+        const healthResponse = await axios.get<ServerHealthResponse>(
+            `${serverUrl}/health`,
+            {
+                timeout: 10000,
+                headers: { "Content-Type": "application/json" },
+            },
+        );
 
         if (healthResponse.status !== 200 || !healthResponse.data) {
             throw new Error(`Server返回错误状态: ${healthResponse.status}`);
@@ -711,7 +857,9 @@ async function checkServerConnection() {
         }
 
         progressWindow.changeLine({
-            text: "Server已连接，正在检查当前LLM配置...",
+            text: liveTest
+                ? "Server已连接，正在检查当前LLM配置与API..."
+                : "Server已连接，正在检查当前LLM配置...",
             type: "default",
             progress: 60,
         });
@@ -735,6 +883,7 @@ async function checkServerConnection() {
                 disableTermExtraction:
                     getPref("disableTermExtraction")?.toString() || "false",
                 fontFamily: getPref("fontFamily")?.toString() || "auto",
+                liveTest,
                 llm_api: llmApi
                     ? {
                           service,
@@ -746,7 +895,7 @@ async function checkServerConnection() {
                     : {},
             },
             {
-                timeout: 15000,
+                timeout: liveTest ? 25000 : 10000,
                 headers: { "Content-Type": "application/json" },
             },
         );
@@ -757,34 +906,61 @@ async function checkServerConnection() {
 
         const healthData = healthResponse.data;
         const validateData = validateResponse.data;
+        if (validateData.status === "error") {
+            const diagnostics = formatDiagnostics(validateData.diagnostics);
+            throw new Error(
+                [
+                    validateData.message || "配置检查失败",
+                    diagnostics,
+                ]
+                    .filter(Boolean)
+                    .join("\n\n"),
+            );
+        }
+        const report = formatCheckReport(
+            serverUrl,
+            healthData,
+            validateData,
+            service,
+        );
+        setConnectionResult(doc, report);
+        const hasIssues = hasCheckIssues(validateData);
         progressWindow.changeLine({
-            text: `✓ 检查通过：${validateData.service || service}${validateData.model ? ` / ${validateData.model}` : ""}`,
-            type: "success",
+            text: hasIssues
+                ? `⚠ 检查完成，存在诊断信息：${
+                      getDiagnosticSummary(validateData.diagnostics) ||
+                      "Live API测试未通过"
+                  }`
+                : `✓ 检查通过：${validateData.service || service}${validateData.model ? ` / ${validateData.model}` : ""}`,
+            type: hasIssues ? "default" : "success",
             progress: 100,
         });
 
         setTimeout(() => {
             progressWindow.close();
             ztoolkit.getGlobal("alert")(
-                `✓ 检查通过！\n\nServer地址: ${serverUrl}\nServer版本: ${healthData.version || "未知"}\n翻译服务: ${validateData.service || service}\n模型: ${validateData.model || "未返回"}\nLLM配置: 正常`,
+                `${hasIssues ? "⚠ 检查完成，存在需要关注的问题" : "✓ 检查通过！"}\n\n${report}`,
             );
         }, 1000);
     } catch (error) {
         let errorMsg = "未知错误";
         let troubleshooting = "";
+        let diagnostics: DiagnosticMessage[] | undefined;
 
         if (axios.isAxiosError(error)) {
             if (
                 error.code === "ECONNABORTED" ||
                 error.message.includes("timeout")
             ) {
-                errorMsg = "连接超时（10秒）";
+                errorMsg = "请求超时";
                 troubleshooting =
                     "请确认Server已启动、网络可达，并检查是否有防火墙拦截。";
             } else if (error.response) {
+                const responseData = getServerErrorData(error.response.data);
+                diagnostics = responseData.diagnostics;
                 const responseMessage =
-                    typeof error.response.data?.message === "string"
-                        ? error.response.data.message
+                    typeof responseData.message === "string"
+                        ? responseData.message
                         : "";
                 errorMsg = responseMessage
                     ? responseMessage
@@ -802,8 +978,12 @@ async function checkServerConnection() {
             errorMsg = error.message;
         }
 
+        const diagnosticText = formatDiagnostics(diagnostics);
+        const diagnosticSummary = getDiagnosticSummary(diagnostics);
         progressWindow.changeLine({
-            text: `✗ 连接失败: ${errorMsg}`,
+            text: `✗ 连接失败: ${errorMsg}${
+                diagnosticSummary ? `；诊断: ${diagnosticSummary}` : ""
+            }`,
             type: "error",
             progress: 100,
         });
@@ -813,12 +993,31 @@ async function checkServerConnection() {
                 status: "无法连接",
                 state: "error",
             });
+            setConnectionResult(
+                doc,
+                [
+                    "检查失败",
+                    `Server地址: ${serverUrl}`,
+                    `错误信息: ${errorMsg}`,
+                    diagnosticText,
+                    troubleshooting,
+                ]
+                    .filter(Boolean)
+                    .join("\n\n"),
+            );
         }
 
         setTimeout(() => {
             progressWindow.close();
             ztoolkit.getGlobal("alert")(
-                `✗ 连接失败\n\n错误信息: ${errorMsg}\n\n${troubleshooting}`,
+                [
+                    "✗ 连接失败",
+                    `错误信息: ${errorMsg}`,
+                    diagnosticText,
+                    troubleshooting,
+                ]
+                    .filter(Boolean)
+                    .join("\n\n"),
             );
         }, 1500);
     } finally {

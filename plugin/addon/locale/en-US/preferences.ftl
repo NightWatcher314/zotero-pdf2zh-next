@@ -33,4 +33,5 @@ pref-llmapi-remove = Remove
 pref-llmapi-edit = Edit
 pref-llmapi-activate = Activate
 pref-llmapi-totop = Pin
-pref-check-connection = Check Server & LLM
+pref-check-connection = Check Server & Config
+pref-live-api-test = Also run a live API test (sends one short translation request)

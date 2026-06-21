@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import logging
 import threading
 from dataclasses import dataclass
@@ -178,6 +179,27 @@ class TranslationResult:
 class ValidationResult:
     service: str
     model: str | None
+    diagnostics: list[dict[str, str]]
+    live_test: dict[str, Any]
+    status: str = "ok"
+
+
+@dataclass(frozen=True)
+class DiagnosticMessage:
+    code: str
+    severity: str
+    message: str
+    suggestion: str | None = None
+
+    def to_dict(self) -> dict[str, str]:
+        payload = {
+            "code": self.code,
+            "severity": self.severity,
+            "message": self.message,
+        }
+        if self.suggestion:
+            payload["suggestion"] = self.suggestion
+        return payload
 
 
 class ProgressLogger:
@@ -367,6 +389,94 @@ def explain_service_error(error: Exception | str) -> str:
     return message
 
 
+def diagnose_service_error(error: Exception | str) -> list[dict[str, str]]:
+    message = explain_service_error(error)
+    lowered = message.lower()
+
+    diagnostics: list[DiagnosticMessage] = []
+    if "too many cid paragraphs" in lowered or "cid" in lowered:
+        diagnostics.append(
+            DiagnosticMessage(
+                code="pdf_text_layer_cid",
+                severity="warning",
+                message="PDF text layer appears to contain CID-heavy encoded text.",
+                suggestion=(
+                    "Try enabling OCR workaround first. If the PDF renders normally "
+                    "but still fails, enable skip text safety checks for this file."
+                ),
+            )
+        )
+    if "chat/completions" in lowered or "choices" in lowered:
+        diagnostics.append(
+            DiagnosticMessage(
+                code="llm_response_shape",
+                severity="error",
+                message="The LLM endpoint did not return an OpenAI-compatible chat response.",
+                suggestion=(
+                    "Check that the API URL points to a compatible /chat/completions "
+                    "endpoint or use the provider-specific service type."
+                ),
+            )
+        )
+    if "401" in lowered or "unauthorized" in lowered or "api key" in lowered:
+        diagnostics.append(
+            DiagnosticMessage(
+                code="llm_auth",
+                severity="error",
+                message="The provider rejected the configured credentials.",
+                suggestion="Check the API key, provider account status, and selected service.",
+            )
+        )
+    if "429" in lowered or "rate limit" in lowered or "too many requests" in lowered:
+        diagnostics.append(
+            DiagnosticMessage(
+                code="llm_rate_limit",
+                severity="warning",
+                message="The provider appears to be rate limiting requests.",
+                suggestion="Lower QPS or pool size, then retry the task.",
+            )
+        )
+    if "timeout" in lowered or "timed out" in lowered or "connection" in lowered:
+        diagnostics.append(
+            DiagnosticMessage(
+                code="network_connectivity",
+                severity="warning",
+                message="The server had trouble reaching the configured endpoint.",
+                suggestion="Check the API URL, local proxy/VPN, and provider availability.",
+            )
+        )
+    if "did not produce" in lowered or "translated pdf not found" in lowered:
+        diagnostics.append(
+            DiagnosticMessage(
+                code="output_missing",
+                severity="error",
+                message="pdf2zh_next finished without the requested output file.",
+                suggestion="Retry with one output mode first, then check server logs if it repeats.",
+            )
+        )
+    if "removes every page" in lowered:
+        diagnostics.append(
+            DiagnosticMessage(
+                code="invalid_page_range",
+                severity="error",
+                message="The skip-last-pages setting would remove the whole PDF.",
+                suggestion="Reduce skipLastPages or set it to 0.",
+            )
+        )
+
+    if not diagnostics:
+        diagnostics.append(
+            DiagnosticMessage(
+                code="unknown_error",
+                severity="error",
+                message="The server could not classify this error automatically.",
+                suggestion="Copy diagnostics and server logs when reporting the issue.",
+            )
+        )
+
+    return [diagnostic.to_dict() for diagnostic in diagnostics]
+
+
 def resolve_output_path(output_path: str | Path, output_dir: Path) -> Path:
     path = Path(output_path)
     if path.is_absolute():
@@ -472,6 +582,41 @@ async def translate_pdf_with_callbacks(
     raise RuntimeError("pdf2zh_next finished without producing a result")
 
 
+def run_live_translator_test(translator: Any, timeout_seconds: int = 20) -> dict[str, Any]:
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(
+        translator.translate,
+        "Hello",
+        True,
+    )
+    try:
+        translated = future.result(timeout=timeout_seconds)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        executor.shutdown(wait=False, cancel_futures=True)
+        return {
+            "enabled": True,
+            "ok": False,
+            "message": f"Provider test timed out after {timeout_seconds} seconds.",
+        }
+    except Exception as exc:
+        executor.shutdown(wait=False, cancel_futures=True)
+        return {
+            "enabled": True,
+            "ok": False,
+            "message": explain_service_error(exc),
+        }
+    finally:
+        if future.done():
+            executor.shutdown(wait=False, cancel_futures=True)
+
+    return {
+        "enabled": True,
+        "ok": True,
+        "message": str(translated)[:200] if translated is not None else "",
+    }
+
+
 def validate_service_config(payload: dict[str, Any], job_id: str) -> ValidationResult:
     with TemporaryDirectory(prefix="zotero-pdf2zh-next-check-") as temp_dir:
         output_dir = Path(temp_dir) / "output"
@@ -496,6 +641,7 @@ def validate_service_config(payload: dict[str, Any], job_id: str) -> ValidationR
             "input_path": str(Path(temp_dir) / "validation.pdf"),
             "output_dir": str(output_dir),
         }
+        live_test_enabled = bool(payload.get("live_test", False))
 
         LOGGER.info(
             "[%s] validating llm config: service=%s",
@@ -509,10 +655,45 @@ def validate_service_config(payload: dict[str, Any], job_id: str) -> ValidationR
             raise RuntimeError(explain_service_error(exc)) from exc
 
         model = getattr(translator, "model", None)
+        diagnostics = [
+            DiagnosticMessage(
+                code="config_constructed",
+                severity="info",
+                message="Provider configuration can be loaded by pdf2zh_next.",
+            ).to_dict()
+        ]
+        live_test = {"enabled": live_test_enabled}
+        if live_test_enabled:
+            LOGGER.info(
+                "[%s] running live provider test: service=%s",
+                job_id,
+                validation_payload["service"],
+            )
+            live_test = run_live_translator_test(translator)
+            if live_test.get("ok"):
+                diagnostics.append(
+                    DiagnosticMessage(
+                        code="live_test_ok",
+                        severity="info",
+                        message="Provider accepted a short translation request.",
+                    ).to_dict()
+                )
+            else:
+                diagnostics.extend(diagnose_service_error(live_test.get("message", "")))
+
+        status = "warning" if live_test_enabled and not live_test.get("ok") else "ok"
         LOGGER.info(
-            "[%s] llm config ok: service=%s model=%s",
+            "[%s] llm config %s: service=%s model=%s live_test=%s",
             job_id,
+            status,
             validation_payload["service"],
             model or "-",
+            live_test.get("ok") if live_test_enabled else "skipped",
         )
-        return ValidationResult(service=validation_payload["service"], model=model)
+        return ValidationResult(
+            service=validation_payload["service"],
+            model=model,
+            diagnostics=diagnostics,
+            live_test=live_test,
+            status=status,
+        )

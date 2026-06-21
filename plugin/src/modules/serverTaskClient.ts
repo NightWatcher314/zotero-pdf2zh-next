@@ -1,4 +1,8 @@
-import { OutputMode, ServerTaskSnapshot } from "./pdf2zhTypes";
+import {
+    DiagnosticMessage,
+    OutputMode,
+    ServerTaskSnapshot,
+} from "./pdf2zhTypes";
 import { PDF2zhHelperFactory } from "./pdf2zhHelper";
 
 type TaskListResponse = {
@@ -116,11 +120,40 @@ export class ServerTaskClient {
         try {
             const payload = (await response.json()) as {
                 message?: string;
+                diagnostics?: DiagnosticMessage[];
                 status?: string;
             };
-            return payload.message || `服务器返回错误: ${response.status}`;
+            return [
+                payload.message || `服务器返回错误: ${response.status}`,
+                this.formatDiagnostics(payload.diagnostics),
+            ]
+                .filter(Boolean)
+                .join("\n\n");
         } catch (_error) {
             return `服务器返回错误: ${response.status}`;
         }
+    }
+
+    private static formatDiagnostics(
+        diagnostics?: DiagnosticMessage[],
+    ): string {
+        if (!diagnostics?.length) {
+            return "";
+        }
+        return diagnostics
+            .map((diagnostic) => {
+                const line = [
+                    `[${diagnostic.severity}]`,
+                    diagnostic.code,
+                    diagnostic.message,
+                ]
+                    .filter(Boolean)
+                    .join(" ");
+                if (diagnostic.suggestion) {
+                    return `${line}\n建议: ${diagnostic.suggestion}`;
+                }
+                return line;
+            })
+            .join("\n");
     }
 }

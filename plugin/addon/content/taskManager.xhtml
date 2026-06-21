@@ -605,7 +605,12 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
                     if (task.error || task.importError) {
                         const error = document.createElement("div");
                         error.className = "error";
-                        error.textContent = task.importError || task.error;
+                        error.textContent = [
+                            task.importError || task.error,
+                            formatDiagnostics(task.errorDiagnostics),
+                        ]
+                            .filter(Boolean)
+                            .join("\n\n");
                         card.appendChild(error);
                     }
 
@@ -859,6 +864,27 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
                     return "-";
                 }
                 return String(task.attempt);
+            }
+
+            function formatDiagnostics(diagnostics) {
+                if (!Array.isArray(diagnostics) || diagnostics.length === 0) {
+                    return "";
+                }
+                return diagnostics
+                    .map((diagnostic) => {
+                        const line = [
+                            `[${diagnostic.severity || "info"}]`,
+                            diagnostic.code || "diagnostic",
+                            diagnostic.message || "",
+                        ]
+                            .filter(Boolean)
+                            .join(" ");
+                        if (diagnostic.suggestion) {
+                            return `${line}\n建议: ${diagnostic.suggestion}`;
+                        }
+                        return line;
+                    })
+                    .join("\n");
             }
 
             function canDelete(task) {

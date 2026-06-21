@@ -29,6 +29,14 @@ class ServerRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["status"], "ok")
         self.assertIn("version", response.json)
+        self.assertIn("pythonVersion", response.json)
+        self.assertIn("pdf2zhVersion", response.json)
+        self.assertIn("babeldocVersion", response.json)
+        self.assertIn("workspace", response.json)
+        self.assertTrue(response.json["workspace"]["writable"])
+        self.assertIn("freeBytes", response.json["workspace"])
+        self.assertIn("tasks", response.json)
+        self.assertIn("total", response.json["tasks"])
 
     def test_translate_returns_pdf_response(self) -> None:
         with patch.object(
@@ -58,6 +66,7 @@ class ServerRouteTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json["status"], "error")
+        self.assertIn("diagnostics", response.json)
 
     def test_translate_rejects_invalid_output_mode(self) -> None:
         response = self.client.post(
@@ -234,7 +243,19 @@ class ServerRouteTests(unittest.TestCase):
         with patch.object(
             server_module,
             "validate_config_request",
-            return_value=SimpleNamespace(service="openai", model="gpt-4.1"),
+            return_value=SimpleNamespace(
+                service="openai",
+                model="gpt-4.1",
+                status="ok",
+                diagnostics=[
+                    {
+                        "code": "config_constructed",
+                        "severity": "info",
+                        "message": "ok",
+                    }
+                ],
+                live_test={"enabled": True, "ok": True, "message": "你好"},
+            ),
         ):
             response = self.client.post(
                 "/validate-config",
@@ -254,6 +275,74 @@ class ServerRouteTests(unittest.TestCase):
         self.assertEqual(response.json["status"], "ok")
         self.assertEqual(response.json["service"], "openai")
         self.assertEqual(response.json["model"], "gpt-4.1")
+        self.assertEqual(response.json["diagnostics"][0]["code"], "config_constructed")
+        self.assertTrue(response.json["liveTest"]["ok"])
+
+    def test_validate_config_passes_live_test_flag(self) -> None:
+        with patch.object(server_module, "validate_service_config") as validate:
+            validate.return_value = SimpleNamespace(
+                service="openai",
+                model="gpt-4.1",
+                status="ok",
+                diagnostics=[],
+                live_test={"enabled": True, "ok": True},
+            )
+
+            response = self.client.post(
+                "/validate-config",
+                json={
+                    "service": "openai",
+                    "liveTest": True,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(validate.call_args.args[0]["live_test"])
+
+    def test_validate_config_can_report_live_test_warning(self) -> None:
+        with patch.object(server_module, "validate_service_config") as validate:
+            validate.return_value = SimpleNamespace(
+                service="openai",
+                model="gpt-4.1",
+                status="warning",
+                diagnostics=[
+                    {
+                        "code": "llm_auth",
+                        "severity": "error",
+                        "message": "bad key",
+                    }
+                ],
+                live_test={"enabled": True, "ok": False, "message": "401"},
+            )
+
+            response = self.client.post(
+                "/validate-config",
+                json={
+                    "service": "openai",
+                    "liveTest": True,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["status"], "warning")
+        self.assertFalse(response.json["liveTest"]["ok"])
+
+    def test_health_reports_degraded_workspace_without_raising(self) -> None:
+        with (
+            patch.object(server_module, "TRANSLATES_DIR", Path("/missing-parent/x")),
+            patch.object(
+                server_module.Path,
+                "mkdir",
+                side_effect=PermissionError("permission denied"),
+            ),
+            patch.object(server_module.shutil, "disk_usage") as disk_usage,
+        ):
+            disk_usage.return_value = SimpleNamespace(free=123)
+            payload = server_module.build_health_payload()
+
+        self.assertEqual(payload["status"], "degraded")
+        self.assertFalse(payload["workspace"]["writable"])
+        self.assertIn("permission denied", payload["workspace"]["error"])
 
     def test_prepare_translation_request_uses_workspace_dir(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

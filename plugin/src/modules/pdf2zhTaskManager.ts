@@ -395,6 +395,7 @@ export class PDF2zhTaskManager {
             stageProgress: snapshot.stageProgress,
             overallProgress: snapshot.overallProgress,
             error: snapshot.error,
+            errorDiagnostics: snapshot.errorDiagnostics,
             attempt: snapshot.attempt,
             resultFiles: snapshot.resultFiles,
             createdAt: snapshot.createdAt,
