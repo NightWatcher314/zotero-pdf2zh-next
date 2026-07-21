@@ -26,8 +26,10 @@ Use this workflow:
    The script will fail if `CHANGELOG.md` does not contain a matching `## v<version>` section, and GitHub release notes are generated from that section.
 
 3. Validate the main repo.
+   Run `pnpm --dir plugin install --frozen-lockfile`.
+   Run `pnpm --dir plugin lint:check`.
    Run `pnpm --dir plugin build`.
-   Run `uv run --directory server python -m unittest discover -s tests`.
+   Run `UV_DEFAULT_INDEX="$(awk -F '"' '/^source = \\{ registry = / { print $2; exit }' server/uv.lock)" uv run --directory server --locked python -m unittest discover -s tests`.
    Run `uv build server --out-dir server/dist --clear --no-sources`.
 
 4. Commit and push the main repo first.
@@ -38,6 +40,7 @@ Use this workflow:
    Unified release publishing uses `uv publish server/dist/*`.
    Keep the token in `.envrc` as `UV_PUBLISH_TOKEN`; `.envrc` must stay ignored by git.
    `scripts/release.sh <version>` publishes XPI, PyPI, and Homebrew by default. Use `--no-pypi` only when intentionally skipping PyPI upload.
+   The script publishes and verifies PyPI before creating the GitHub Release. It may reuse an existing matching PyPI version or GitHub Release when recovering an interrupted release.
 
 6. Sync the Homebrew tap if the release version or source commit changed.
    Update `NightWatcher314/homebrew-formula` file `Formula/zotero-pdf2zh-next.rb`.

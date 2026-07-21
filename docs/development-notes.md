@@ -79,8 +79,11 @@ scripts/release.sh 5.2.4
 常规验证：
 
 ```bash
+pnpm --dir plugin install --frozen-lockfile
+pnpm --dir plugin lint:check
 pnpm --dir plugin build
-uv run --directory server python -m unittest discover -s tests
+UV_DEFAULT_INDEX="$(awk -F '"' '/^source = \{ registry = / { print $2; exit }' server/uv.lock)" \
+  uv run --directory server --locked python -m unittest discover -s tests
 git diff --check
 ```
 
@@ -114,10 +117,14 @@ scripts/release.sh 5.2.3
 - 跑服务端测试和插件构建。
 - 构建服务端 Python wheel/sdist，确保 PyPI 包可发布。
 - 创建主仓库 release commit 并推送。
-- 用 `CHANGELOG.md` 对应章节生成 GitHub Release notes。
-- 上传 Zotero `.xpi` 和固定 `release/update.json`。
 - 用 `uv publish server/dist/*` 发布服务端包到 PyPI。
+- 确认 PyPI 已可查询该版本后，用 `CHANGELOG.md` 对应章节生成 GitHub Release notes。
+- 上传 Zotero `.xpi` 和固定 `release/update.json`。
 - 更新 Homebrew tap formula 并跑 brew 验证。
+
+`plugin/pnpm-lock.yaml` 必须提交。CI 和发版都使用 `--frozen-lockfile`，依赖变化后要同步更新 lockfile。
+
+GitHub Release 或 PyPI 其中一端已存在时，脚本会校验版本/commit 后跳过已完成步骤，支持安全重跑。不要恢复单独的 tag 发布 workflow；`scripts/release.sh` 是唯一发版入口。
 
 如果临时不想上传 PyPI，可以传 `--no-pypi`；默认发版会同时发布 XPI、PyPI 和 Homebrew。
 

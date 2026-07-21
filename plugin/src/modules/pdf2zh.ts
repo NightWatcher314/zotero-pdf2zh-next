@@ -26,7 +26,8 @@ export class PDF2zhUIFactory {
                     tag: "menuitem",
                     id: `${menuPrefix}-translate-pdf`,
                     label: `zotero-pdf2zh-next: ${getString("prefs-menu-translate")}`,
-                    commandListener: () => addon.hooks.onDialogEvents("translatePDF"),
+                    commandListener: () =>
+                        addon.hooks.onDialogEvents("translatePDF"),
                     icon: menuIcon,
                 },
                 {

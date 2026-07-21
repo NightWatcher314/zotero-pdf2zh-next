@@ -631,7 +631,9 @@ function formatCheckReport(
     service: string,
 ): string {
     const lines = [
-        hasCheckIssues(validateData) ? "检查完成，存在需要关注的问题" : "检查通过",
+        hasCheckIssues(validateData)
+            ? "检查完成，存在需要关注的问题"
+            : "检查通过",
         `Server地址: ${serverUrl}`,
         ...formatHealthDetails(healthData),
         `翻译服务: ${validateData.service || service}`,
@@ -878,7 +880,8 @@ async function checkServerConnection() {
                 poolSize: getPref("poolSize")?.toString() || "0",
                 ocr: getPref("ocr")?.toString() || "false",
                 autoOcr: getPref("autoOcr")?.toString() || "true",
-                skipTextChecks: getPref("skipTextChecks")?.toString() || "false",
+                skipTextChecks:
+                    getPref("skipTextChecks")?.toString() || "false",
                 noWatermark: getPref("noWatermark")?.toString() || "true",
                 disableTermExtraction:
                     getPref("disableTermExtraction")?.toString() || "false",
@@ -909,10 +912,7 @@ async function checkServerConnection() {
         if (validateData.status === "error") {
             const diagnostics = formatDiagnostics(validateData.diagnostics);
             throw new Error(
-                [
-                    validateData.message || "配置检查失败",
-                    diagnostics,
-                ]
+                [validateData.message || "配置检查失败", diagnostics]
                     .filter(Boolean)
                     .join("\n\n"),
             );

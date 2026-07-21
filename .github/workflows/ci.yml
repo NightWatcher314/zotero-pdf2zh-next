@@ -23,7 +23,7 @@ jobs:
             - name: Setup pnpm
               uses: pnpm/action-setup@v4
               with:
-                  version: 10
+                  version: 10.34.5
 
             - name: Install plugin deps
               run: pnpm install --frozen-lockfile
@@ -47,5 +47,8 @@ jobs:
               uses: astral-sh/setup-uv@v6
 
             - name: Run server tests
-              run: uv run python -m unittest discover -s tests
+              run: |
+                  UV_LOCK_INDEX="$(awk -F '"' '/^source = \{ registry = / { print $2; exit }' uv.lock)"
+                  test -n "$UV_LOCK_INDEX"
+                  UV_DEFAULT_INDEX="$UV_LOCK_INDEX" uv run --locked python -m unittest discover -s tests
               working-directory: server
