@@ -37,7 +37,7 @@ Use this workflow:
 
 5. Publish to PyPI.
    The server package name is `zotero-pdf2zh-next`.
-   Unified release publishing uses `uv publish server/dist/*`.
+   Unified release publishing uses `uv publish server/dist/*` locally when `UV_PUBLISH_TOKEN` exists, otherwise it dispatches `.github/workflows/publish-pypi.yml` for GitHub Trusted Publishing.
    Keep the token in `.envrc` as `UV_PUBLISH_TOKEN`; `.envrc` must stay ignored by git.
    `scripts/release.sh <version>` publishes XPI, PyPI, and Homebrew by default. Use `--no-pypi` only when intentionally skipping PyPI upload.
    The script publishes and verifies PyPI before creating the GitHub Release. It may reuse an existing matching PyPI version or GitHub Release only when recovering the same release commit. Build an older-version backfill from its tag, not from a newer `main`.

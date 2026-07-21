@@ -27,7 +27,7 @@ uv tool install --python 3.13 zotero-pdf2zh-next
 zotero-pdf2zh-next
 ```
 
-服务端 Python 包发布到 PyPI，包名也是 `zotero-pdf2zh-next`。PyPI 发布由统一发版脚本执行，token 由 direnv 注入，不写进仓库：
+服务端 Python 包发布到 PyPI，包名也是 `zotero-pdf2zh-next`。PyPI 发布由统一发版脚本执行；默认通过 GitHub Trusted Publisher，无需仓库 secret。也可以由 direnv 注入 token，token 不写进仓库：
 
 ```bash
 # .envrc
@@ -117,12 +117,14 @@ scripts/release.sh 5.2.3
 - 跑服务端测试和插件构建。
 - 构建服务端 Python wheel/sdist，确保 PyPI 包可发布。
 - 创建主仓库 release commit 并推送。
-- 用 `uv publish server/dist/*` 发布服务端包到 PyPI。
+- 使用本地 token 或 GitHub Trusted Publisher 发布服务端包到 PyPI。
 - 确认 PyPI 已可查询该版本后，用 `CHANGELOG.md` 对应章节生成 GitHub Release notes。
 - 上传 Zotero `.xpi` 和固定 `release/update.json`。
 - 更新 Homebrew tap formula 并跑 brew 验证。
 
 `plugin/pnpm-lock.yaml` 必须提交。CI 和发版都使用 `--frozen-lockfile`，依赖变化后要同步更新 lockfile。
+
+`.github/workflows/publish-pypi.yml` 只接受手动指定的现有 tag，并从该 tag 构建。`scripts/release.sh` 在没有 `UV_PUBLISH_TOKEN` 时负责创建/校验 tag、触发该 workflow、等待 PyPI 可查询；不要直接从 `main` 构建旧版本。
 
 同一次 release commit 的 GitHub Release 或 PyPI 其中一端已存在时，脚本会校验 tag/commit 和 PyPI wheel/sdist 后补齐缺失步骤。旧版本 backfill 必须从对应 tag 构建，不能从已前进的 `main` 直接重发。不要恢复单独的 tag 发布 workflow；`scripts/release.sh` 是唯一发版入口。
 

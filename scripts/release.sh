@@ -28,8 +28,8 @@ formula after the main repo push/release succeeds. The default tap path is
 ../homebrew-formula when present, then /Users/night/Documents/Codes/homebrew-formula
 when present.
 
-PyPI publishing uses UV_PUBLISH_TOKEN. With direnv, put it in .envrc and run
-direnv allow before release. Use --no-pypi to skip upload.
+PyPI publishing uses UV_PUBLISH_TOKEN when available. Otherwise the script
+dispatches the trusted-publishing workflow. Use --no-pypi to skip upload.
 EOF
 }
 
@@ -137,9 +137,10 @@ PYPI_VERSION_URL="https://pypi.org/pypi/$PYPI_PACKAGE/$VERSION/json"
 PYPI_CHECK_URL="https://pypi.org/simple/$PYPI_PACKAGE/"
 PYPI_STATUS=""
 PYPI_COMPLETE=0
+PUBLISH_PYPI_VIA_GITHUB=0
 
 pypi_release_complete() {
-    curl -fsS "$PYPI_VERSION_URL" | node -e '
+    curl -fs "$PYPI_VERSION_URL" | node -e '
 const fs = require("fs");
 const version = process.argv[1];
 const data = JSON.parse(fs.readFileSync(0, "utf8"));
@@ -166,13 +167,19 @@ if [[ "$PUBLISH_PYPI" -eq 1 ]]; then
                 PYPI_COMPLETE=1
                 echo "PyPI release is complete; upload will be skipped: $PYPI_PACKAGE==$VERSION"
             else
-                [[ -n "$PYPI_TOKEN" ]] ||
-                    die "PyPI release is incomplete and UV_PUBLISH_TOKEN is required to resume it"
+                if [[ -z "$PYPI_TOKEN" ]]; then
+                    [[ "$PUSH" -eq 1 ]] ||
+                        die "PyPI release is incomplete; publishing without a token requires push access"
+                    PUBLISH_PYPI_VIA_GITHUB=1
+                fi
             fi
             ;;
         404)
-            [[ -n "$PYPI_TOKEN" ]] ||
-                die "UV_PUBLISH_TOKEN is required for PyPI publishing; set it in .envrc and run direnv allow, or use --no-pypi"
+            if [[ -z "$PYPI_TOKEN" ]]; then
+                [[ "$PUSH" -eq 1 ]] ||
+                    die "PyPI publishing without UV_PUBLISH_TOKEN requires push access"
+                PUBLISH_PYPI_VIA_GITHUB=1
+            fi
             ;;
         *)
             die "unexpected PyPI response for $PYPI_PACKAGE==$VERSION: HTTP $PYPI_STATUS"
@@ -265,7 +272,7 @@ fi
 COMMIT="$(git rev-parse HEAD)"
 
 GITHUB_RELEASE_EXISTS=0
-if [[ "$PUBLISH_RELEASE" -eq 1 ]]; then
+if [[ "$PUBLISH_RELEASE" -eq 1 || "$PUBLISH_PYPI_VIA_GITHUB" -eq 1 ]]; then
     if ! REMOTE_TAG_REFS="$(git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}")"; then
         die "failed to query remote GitHub tag: $TAG"
     fi
@@ -278,7 +285,7 @@ if [[ "$PUBLISH_RELEASE" -eq 1 ]]; then
         [[ "$REMOTE_TAG_COMMIT" == "$COMMIT" ]] ||
             die "GitHub tag $TAG points to $REMOTE_TAG_COMMIT, expected $COMMIT"
     fi
-    if gh release view "$TAG" >/dev/null 2>&1; then
+    if [[ "$PUBLISH_RELEASE" -eq 1 ]] && gh release view "$TAG" >/dev/null 2>&1; then
         [[ -n "${REMOTE_TAG_COMMIT:-}" ]] || die "GitHub release exists without a resolvable tag: $TAG"
         GITHUB_RELEASE_EXISTS=1
     fi
@@ -288,14 +295,29 @@ if [[ "$PUSH" -eq 1 ]]; then
     git push origin "$BRANCH"
 fi
 
+if [[ "$PUBLISH_PYPI_VIA_GITHUB" -eq 1 && -z "$REMOTE_TAG_COMMIT" ]]; then
+    if LOCAL_TAG_COMMIT="$(git rev-parse "$TAG^{commit}" 2>/dev/null)"; then
+        [[ "$LOCAL_TAG_COMMIT" == "$COMMIT" ]] ||
+            die "local tag $TAG points to $LOCAL_TAG_COMMIT, expected $COMMIT"
+    else
+        git tag -a "$TAG" -m "$TAG" "$COMMIT"
+    fi
+    git push origin "$TAG"
+    REMOTE_TAG_COMMIT="$COMMIT"
+fi
+
 if [[ "$PUBLISH_PYPI" -eq 1 ]]; then
     if [[ "$PYPI_COMPLETE" -eq 0 ]]; then
-        UV_PUBLISH_TOKEN="$PYPI_TOKEN" \
-            uv publish --check-url "$PYPI_CHECK_URL" server/dist/*
+        if [[ "$PUBLISH_PYPI_VIA_GITHUB" -eq 1 ]]; then
+            gh workflow run publish-pypi.yml --ref "$BRANCH" -f tag="$TAG"
+        else
+            UV_PUBLISH_TOKEN="$PYPI_TOKEN" \
+                uv publish --check-url "$PYPI_CHECK_URL" server/dist/*
+        fi
     fi
 
     PYPI_VERIFIED=0
-    for _ in {1..6}; do
+    for _ in {1..60}; do
         if pypi_release_complete; then
             PYPI_VERIFIED=1
             break
