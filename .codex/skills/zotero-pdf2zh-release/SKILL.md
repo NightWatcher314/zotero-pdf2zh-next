@@ -31,6 +31,7 @@ Use this workflow:
    Run `pnpm --dir plugin build`.
    Run `UV_DEFAULT_INDEX="$(awk -F '"' '/^source = \\{ registry = / { print $2; exit }' server/uv.lock)" uv run --directory server --locked python -m unittest discover -s tests`.
    Run `uv build server --out-dir server/dist --clear --no-sources`.
+   Keep the committed `server/uv.lock` registry on public `https://pypi.org/simple`; never commit a Host-local mirror URL. Regenerate it with `UV_DEFAULT_INDEX=https://pypi.org/simple uv --directory server lock` when needed.
 
 4. Commit and push the main repo first.
    The Homebrew formula currently points to a source tarball for a pushed main-repo commit, so do not update the formula before the main repo commit exists on GitHub.
@@ -38,6 +39,7 @@ Use this workflow:
 5. Publish to PyPI.
    The server package name is `zotero-pdf2zh-next`.
    Unified release publishing uses `uv publish server/dist/*` locally when `UV_PUBLISH_TOKEN` exists, otherwise it dispatches `.github/workflows/publish-pypi.yml` for GitHub Trusted Publishing.
+   The PyPI publisher identity is owner `NightWatcher314`, repository `zotero-pdf2zh-next`, workflow `publish-pypi.yml`, environment `pypi`. Keep `id-token: write` scoped to the publishing job.
    Keep the token in `.envrc` as `UV_PUBLISH_TOKEN`; `.envrc` must stay ignored by git.
    `scripts/release.sh <version>` publishes XPI, PyPI, and Homebrew by default. Use `--no-pypi` only when intentionally skipping PyPI upload.
    The script publishes and verifies PyPI before creating the GitHub Release. It may reuse an existing matching PyPI version or GitHub Release only when recovering the same release commit. Build an older-version backfill from its tag, not from a newer `main`.

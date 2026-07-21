@@ -20,6 +20,12 @@ uv run --directory server python -m unittest discover -s tests
 uv run --directory server zotero-pdf2zh-next
 ```
 
+`server/uv.lock` 是跨机器和 GitHub Actions 共用的可复现输入，registry 必须保持为公共 `https://pypi.org/simple`，不能提交 Host 本地镜像地址。需要重建 lock 时显式使用：
+
+```bash
+UV_DEFAULT_INDEX=https://pypi.org/simple uv --directory server lock
+```
+
 面向用户的服务端分发优先使用 `uv tool`，命令名和插件名保持一致：
 
 ```bash
@@ -125,6 +131,8 @@ scripts/release.sh 5.2.3
 `plugin/pnpm-lock.yaml` 必须提交。CI 和发版都使用 `--frozen-lockfile`，依赖变化后要同步更新 lockfile。
 
 `.github/workflows/publish-pypi.yml` 只接受手动指定的现有 tag，并从该 tag 构建。`scripts/release.sh` 在没有 `UV_PUBLISH_TOKEN` 时负责创建/校验 tag、触发该 workflow、等待 PyPI 可查询；不要直接从 `main` 构建旧版本。
+
+PyPI Trusted Publisher 的绑定必须保持为：owner `NightWatcher314`、repository `zotero-pdf2zh-next`、workflow `publish-pypi.yml`、environment `pypi`。GitHub `pypi` environment 不保存 token；`id-token: write` 只授予发布 job。
 
 同一次 release commit 的 GitHub Release 或 PyPI 其中一端已存在时，脚本会校验 tag/commit 和 PyPI wheel/sdist 后补齐缺失步骤。旧版本 backfill 必须从对应 tag 构建，不能从已前进的 `main` 直接重发。不要恢复单独的 tag 发布 workflow；`scripts/release.sh` 是唯一发版入口。
 
