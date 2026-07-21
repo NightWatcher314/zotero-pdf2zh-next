@@ -124,7 +124,7 @@ scripts/release.sh 5.2.3
 
 `plugin/pnpm-lock.yaml` 必须提交。CI 和发版都使用 `--frozen-lockfile`，依赖变化后要同步更新 lockfile。
 
-GitHub Release 或 PyPI 其中一端已存在时，脚本会校验版本/commit 后跳过已完成步骤，支持安全重跑。不要恢复单独的 tag 发布 workflow；`scripts/release.sh` 是唯一发版入口。
+同一次 release commit 的 GitHub Release 或 PyPI 其中一端已存在时，脚本会校验 tag/commit 和 PyPI wheel/sdist 后补齐缺失步骤。旧版本 backfill 必须从对应 tag 构建，不能从已前进的 `main` 直接重发。不要恢复单独的 tag 发布 workflow；`scripts/release.sh` 是唯一发版入口。
 
 如果临时不想上传 PyPI，可以传 `--no-pypi`；默认发版会同时发布 XPI、PyPI 和 Homebrew。
 

@@ -40,7 +40,7 @@ Use this workflow:
    Unified release publishing uses `uv publish server/dist/*`.
    Keep the token in `.envrc` as `UV_PUBLISH_TOKEN`; `.envrc` must stay ignored by git.
    `scripts/release.sh <version>` publishes XPI, PyPI, and Homebrew by default. Use `--no-pypi` only when intentionally skipping PyPI upload.
-   The script publishes and verifies PyPI before creating the GitHub Release. It may reuse an existing matching PyPI version or GitHub Release when recovering an interrupted release.
+   The script publishes and verifies PyPI before creating the GitHub Release. It may reuse an existing matching PyPI version or GitHub Release only when recovering the same release commit. Build an older-version backfill from its tag, not from a newer `main`.
 
 6. Sync the Homebrew tap if the release version or source commit changed.
    Update `NightWatcher314/homebrew-formula` file `Formula/zotero-pdf2zh-next.rb`.

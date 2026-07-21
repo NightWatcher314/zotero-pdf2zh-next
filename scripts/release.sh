@@ -134,7 +134,27 @@ git diff --cached --quiet || die "staged changes exist; commit or unstage them f
 TAG="v$VERSION"
 PYPI_PACKAGE="zotero-pdf2zh-next"
 PYPI_VERSION_URL="https://pypi.org/pypi/$PYPI_PACKAGE/$VERSION/json"
+PYPI_CHECK_URL="https://pypi.org/simple/$PYPI_PACKAGE/"
 PYPI_STATUS=""
+PYPI_COMPLETE=0
+
+pypi_release_complete() {
+    curl -fsS "$PYPI_VERSION_URL" | node -e '
+const fs = require("fs");
+const version = process.argv[1];
+const data = JSON.parse(fs.readFileSync(0, "utf8"));
+const files = new Set(data.urls.map((item) => item.filename));
+const expected = [
+  `zotero_pdf2zh_next-${version}-py3-none-any.whl`,
+  `zotero_pdf2zh_next-${version}.tar.gz`,
+];
+const missing = expected.filter((filename) => !files.has(filename));
+if (missing.length > 0) {
+  console.error(`PyPI release is missing: ${missing.join(", ")}`);
+  process.exit(1);
+}
+' "$VERSION"
+}
 
 if [[ "$PUBLISH_PYPI" -eq 1 ]]; then
     if ! PYPI_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$PYPI_VERSION_URL")"; then
@@ -142,7 +162,13 @@ if [[ "$PUBLISH_PYPI" -eq 1 ]]; then
     fi
     case "$PYPI_STATUS" in
         200)
-            echo "PyPI release already exists; upload will be skipped: $PYPI_PACKAGE==$VERSION"
+            if pypi_release_complete; then
+                PYPI_COMPLETE=1
+                echo "PyPI release is complete; upload will be skipped: $PYPI_PACKAGE==$VERSION"
+            else
+                [[ -n "$PYPI_TOKEN" ]] ||
+                    die "PyPI release is incomplete and UV_PUBLISH_TOKEN is required to resume it"
+            fi
             ;;
         404)
             [[ -n "$PYPI_TOKEN" ]] ||
@@ -239,11 +265,23 @@ fi
 COMMIT="$(git rev-parse HEAD)"
 
 GITHUB_RELEASE_EXISTS=0
-if [[ "$PUBLISH_RELEASE" -eq 1 ]] && gh release view "$TAG" >/dev/null 2>&1; then
-    RELEASE_COMMIT="$(gh api "repos/{owner}/{repo}/commits/$TAG" --jq .sha)"
-    [[ "$RELEASE_COMMIT" == "$COMMIT" ]] ||
-        die "GitHub release $TAG points to $RELEASE_COMMIT, expected $COMMIT"
-    GITHUB_RELEASE_EXISTS=1
+if [[ "$PUBLISH_RELEASE" -eq 1 ]]; then
+    if ! REMOTE_TAG_REFS="$(git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}")"; then
+        die "failed to query remote GitHub tag: $TAG"
+    fi
+    REMOTE_TAG_COMMIT="$(printf '%s\n' "$REMOTE_TAG_REFS" | awk '
+        $2 ~ /\^\{\}$/ { peeled = $1 }
+        $2 !~ /\^\{\}$/ { direct = $1 }
+        END { print peeled ? peeled : direct }
+    ')"
+    if [[ -n "$REMOTE_TAG_COMMIT" ]]; then
+        [[ "$REMOTE_TAG_COMMIT" == "$COMMIT" ]] ||
+            die "GitHub tag $TAG points to $REMOTE_TAG_COMMIT, expected $COMMIT"
+    fi
+    if gh release view "$TAG" >/dev/null 2>&1; then
+        [[ -n "${REMOTE_TAG_COMMIT:-}" ]] || die "GitHub release exists without a resolvable tag: $TAG"
+        GITHUB_RELEASE_EXISTS=1
+    fi
 fi
 
 if [[ "$PUSH" -eq 1 ]]; then
@@ -251,13 +289,14 @@ if [[ "$PUSH" -eq 1 ]]; then
 fi
 
 if [[ "$PUBLISH_PYPI" -eq 1 ]]; then
-    if [[ "$PYPI_STATUS" == "404" ]]; then
-        UV_PUBLISH_TOKEN="$PYPI_TOKEN" uv publish server/dist/*
+    if [[ "$PYPI_COMPLETE" -eq 0 ]]; then
+        UV_PUBLISH_TOKEN="$PYPI_TOKEN" \
+            uv publish --check-url "$PYPI_CHECK_URL" server/dist/*
     fi
 
     PYPI_VERIFIED=0
     for _ in {1..6}; do
-        if curl -fsS -o /dev/null "$PYPI_VERSION_URL"; then
+        if pypi_release_complete; then
             PYPI_VERIFIED=1
             break
         fi
@@ -278,7 +317,10 @@ EOF
 
     if [[ "$GITHUB_RELEASE_EXISTS" -eq 1 ]]; then
         echo "Reusing existing GitHub release: $TAG"
-        gh release upload "$TAG" plugin/build/zotero-pdf2zh-next.xpi --clobber
+        if ! gh release view "$TAG" --json assets --jq '.assets[].name' |
+            grep -Fxq 'zotero-pdf2zh-next.xpi'; then
+            gh release upload "$TAG" plugin/build/zotero-pdf2zh-next.xpi
+        fi
     else
         gh release create "$TAG" \
             plugin/build/zotero-pdf2zh-next.xpi \
