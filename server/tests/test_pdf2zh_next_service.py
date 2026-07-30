@@ -4,11 +4,14 @@ import sys
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
 SERVER_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SERVER_DIR))
 
 from pdf2zh_next_service import build_settings_input
+from pdf2zh_next_service import collect_output_files
 from pdf2zh_next_service import diagnose_service_error
 from pdf2zh_next_service import install_text_check_bypass
 from pdf2zh_next_service import run_live_translator_test
@@ -16,6 +19,29 @@ from pdf2zh_next_service import set_text_checks_skipped
 
 
 class PDF2zhNextServiceTests(unittest.TestCase):
+    def test_collect_output_files_moves_absolute_result_into_workspace(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            generated_path = root / "translated.pdf"
+            generated_path.write_bytes(b"pdf")
+            output_dir = root / "workspace" / "output"
+            output_dir.mkdir(parents=True)
+
+            files = collect_output_files(
+                SimpleNamespace(
+                    mono_pdf_path=None,
+                    dual_pdf_path=generated_path,
+                ),
+                output_dir,
+                ["dual"],
+                "paper.pdf",
+            )
+
+            persisted_path = output_dir / generated_path.name
+            self.assertEqual(files["dual"].output_path, persisted_path)
+            self.assertEqual(persisted_path.read_bytes(), b"pdf")
+            self.assertFalse(generated_path.exists())
+
     def test_build_settings_input_disables_auto_extract_glossary(self) -> None:
         settings_input = build_settings_input(
             {

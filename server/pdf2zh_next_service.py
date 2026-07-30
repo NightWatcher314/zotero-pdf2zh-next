@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
+import shutil
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -506,6 +507,11 @@ def collect_output_files(
         resolved_path = resolve_output_path(selected_path, output_dir)
         if not resolved_path.exists():
             raise FileNotFoundError(f"Translated PDF not found: {resolved_path}")
+
+        persistent_path = output_dir / resolved_path.name
+        if resolved_path != persistent_path:
+            shutil.move(resolved_path, persistent_path)
+            resolved_path = persistent_path
 
         files[output_mode] = TranslationOutputFile(
             output_mode=output_mode,
