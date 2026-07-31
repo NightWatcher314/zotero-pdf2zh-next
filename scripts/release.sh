@@ -145,6 +145,7 @@ git diff --quiet || die "tracked worktree changes exist; commit or stash them fi
 git diff --cached --quiet || die "staged changes exist; commit or unstage them first"
 
 TAG="v$VERSION"
+GITHUB_REPO="NightWatcher314/zotero-pdf2zh-next"
 PYPI_PACKAGE="zotero-pdf2zh-next"
 PYPI_VERSION_URL="https://pypi.org/pypi/$PYPI_PACKAGE/$VERSION/json"
 PYPI_CHECK_URL="https://pypi.org/simple/$PYPI_PACKAGE/"
@@ -300,7 +301,8 @@ if [[ "$PUBLISH_RELEASE" -eq 1 || "$PUBLISH_PYPI_VIA_GITHUB" -eq 1 ]]; then
         [[ "$REMOTE_TAG_COMMIT" == "$COMMIT" ]] ||
             die "GitHub tag $TAG points to $REMOTE_TAG_COMMIT, expected $COMMIT"
     fi
-    if [[ "$PUBLISH_RELEASE" -eq 1 ]] && gh release view "$TAG" >/dev/null 2>&1; then
+    if [[ "$PUBLISH_RELEASE" -eq 1 ]] &&
+        gh release view "$TAG" --repo "$GITHUB_REPO" >/dev/null 2>&1; then
         [[ -n "${REMOTE_TAG_COMMIT:-}" ]] || die "GitHub release exists without a resolvable tag: $TAG"
         GITHUB_RELEASE_EXISTS=1
     fi
@@ -324,7 +326,10 @@ fi
 if [[ "$PUBLISH_PYPI" -eq 1 ]]; then
     if [[ "$PYPI_COMPLETE" -eq 0 ]]; then
         if [[ "$PUBLISH_PYPI_VIA_GITHUB" -eq 1 ]]; then
-            gh workflow run publish-pypi.yml --ref "$BRANCH" -f tag="$TAG"
+            gh workflow run publish-pypi.yml \
+                --repo "$GITHUB_REPO" \
+                --ref "$BRANCH" \
+                -f tag="$TAG"
         else
             UV_PUBLISH_TOKEN="$PYPI_TOKEN" \
                 uv publish --check-url "$PYPI_CHECK_URL" server/dist/*
@@ -354,24 +359,26 @@ EOF
 
     if [[ "$GITHUB_RELEASE_EXISTS" -eq 1 ]]; then
         echo "Reusing existing GitHub release: $TAG"
-        if ! gh release view "$TAG" --json assets --jq '.assets[].name' |
+        if ! gh release view "$TAG" --repo "$GITHUB_REPO" --json assets --jq '.assets[].name' |
             grep -Fxq 'zotero-pdf2zh-next.xpi'; then
-            gh release upload "$TAG" plugin/build/zotero-pdf2zh-next.xpi
+            gh release upload "$TAG" plugin/build/zotero-pdf2zh-next.xpi --repo "$GITHUB_REPO"
         fi
     else
         gh release create "$TAG" \
             plugin/build/zotero-pdf2zh-next.xpi \
+            --repo "$GITHUB_REPO" \
             --target "$COMMIT" \
             --title "$TAG" \
             --notes-file "$NOTES_FILE" \
             --latest
     fi
 
-    if gh release view release >/dev/null 2>&1; then
-        gh release upload release plugin/build/update.json --clobber
+    if gh release view release --repo "$GITHUB_REPO" >/dev/null 2>&1; then
+        gh release upload release plugin/build/update.json --repo "$GITHUB_REPO" --clobber
     else
         gh release create release \
             plugin/build/update.json \
+            --repo "$GITHUB_REPO" \
             --target "$COMMIT" \
             --title "Zotero update manifest" \
             --notes "Stable update manifest used by Zotero Check for Updates." \
