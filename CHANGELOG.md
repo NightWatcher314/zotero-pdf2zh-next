@@ -4,6 +4,13 @@
 
 ## Unreleased
 
+## v5.2.8 - 2026-07-31
+
+- Homebrew 改为发布 Apple Silicon、Intel macOS 和 Linux bottle，安装时不再现场解析和下载 Python 依赖。
+- Homebrew 和源码 `uv sync` 跳过上游未使用的 Gradio、FastAPI 等前端/服务依赖，保留全部翻译 provider、OCR 和术语提取能力。
+- 补齐上游漏声明的 `tomlkit` 核心依赖，并增加锁文件公共 PyPI 与瘦身依赖回归测试。
+- fresh macOS 环境实测从 142 个 Python distribution、988 MiB 降至 115 个、740 MiB。
+
 ## v5.2.7 - 2026-07-31
 
 - 修复 Homebrew 安装依赖被锁定到私有 `pypi.ntwc.top` 镜像的问题。
