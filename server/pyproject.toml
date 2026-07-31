@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zotero-pdf2zh-next"
-version = "5.2.8"
+version = "5.2.9"
 description = "Minimal pdf2zh_next bridge for the Zotero plugin"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
