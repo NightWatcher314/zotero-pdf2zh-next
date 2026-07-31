@@ -12,6 +12,23 @@ dependencies = [
     "flask>=3.1.0,<4",
     "pdf2zh_next>=2.8.2",
     "pypdf>=6.0.0,<7",
+    "tomlkit>=0.13.0,<1",
+]
+
+[tool.uv]
+exclude-dependencies = [
+    { package = { name = "pdf2zh-next", version = "2.8.2" }, dependencies = [
+        "chardet",
+        "fastapi",
+        "gradio",
+        "gradio-i18n",
+        "gradio-pdf",
+        "legacy-cgi",
+        "pydantic-settings",
+        "pyyaml",
+        "sse-starlette",
+        "uvicorn",
+    ] },
 ]
 
 [project.scripts]
