@@ -2408,7 +2408,7 @@ wheels = [
 
 [[package]]
 name = "zotero-pdf2zh-next"
-version = "5.2.7"
+version = "5.2.8"
 source = { editable = "." }
 dependencies = [
     { name = "flask" },

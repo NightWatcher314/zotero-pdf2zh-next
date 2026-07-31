@@ -1,6 +1,6 @@
 {
     "name": "zotero-pdf2zh-next",
-    "version": "5.2.7",
+    "version": "5.2.8",
     "packageManager": "pnpm@10.34.5",
     "description": "Minimal Zotero bridge for pdf2zh_next",
     "config": {
