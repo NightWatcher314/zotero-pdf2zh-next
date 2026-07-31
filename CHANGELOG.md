@@ -4,9 +4,16 @@
 
 ## Unreleased
 
+## v5.2.9 - 2026-07-31
+
+- 源码 `uv sync`、Docker 和 Homebrew 构建去掉重复的 GUI 版 `opencv-python`，只保留 BabelDOC 已依赖的 `opencv-python-headless`。
+- RapidOCR 空白图 smoke test 通过；OCR 能力保持不变，Linux 不再因 GUI OpenCV 缺少 `libxcb.so.1` 而失败。
+- fresh macOS 环境实测降至 114 个 Python distribution、703 MiB；相对未瘦身版本共减少 28 个 distribution、285 MiB。
+- 加固统一发版脚本：可靠检测 tap 远端分支、接受 `brew pr-pull` 的关闭状态，并确认 Apple Silicon bottle 确实写入 Formula。
+
 ## v5.2.8 - 2026-07-31
 
-- Homebrew 改为发布 Apple Silicon、Intel macOS 和 Linux bottle，安装时不再现场解析和下载 Python 依赖。
+- Homebrew 改为发布 Apple Silicon bottle，安装时不再现场解析和下载 Python 依赖。
 - Homebrew 和源码 `uv sync` 跳过上游未使用的 Gradio、FastAPI 等前端/服务依赖，保留全部翻译 provider、OCR 和术语提取能力。
 - 补齐上游漏声明的 `tomlkit` 核心依赖，并增加锁文件公共 PyPI 与瘦身依赖回归测试。
 - fresh macOS 环境实测从 142 个 Python distribution、988 MiB 降至 115 个、740 MiB。

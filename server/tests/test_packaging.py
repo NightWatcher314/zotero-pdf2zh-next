@@ -30,6 +30,7 @@ class PackagingTests(unittest.TestCase):
                 "gradio-i18n",
                 "gradio-pdf",
                 "legacy-cgi",
+                "opencv-python",
                 "pydantic-settings",
                 "sse-starlette",
                 "uvicorn",

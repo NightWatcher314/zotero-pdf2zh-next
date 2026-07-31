@@ -29,6 +29,9 @@ exclude-dependencies = [
         "sse-starlette",
         "uvicorn",
     ] },
+    { package = { name = "rapidocr-onnxruntime", version = "1.4.4" }, dependencies = [
+        "opencv-python",
+    ] },
 ]
 
 [project.scripts]

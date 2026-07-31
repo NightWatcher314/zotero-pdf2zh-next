@@ -153,7 +153,9 @@ PYPI_COMPLETE=0
 PUBLISH_PYPI_VIA_GITHUB=0
 
 pypi_release_complete() {
-    curl -fs "$PYPI_VERSION_URL" | node -e '
+    local response
+    response="$(curl -fsS "$PYPI_VERSION_URL")" || return 1
+    printf '%s' "$response" | node -e '
 const fs = require("fs");
 const version = process.argv[1];
 const data = JSON.parse(fs.readFileSync(0, "utf8"));
@@ -388,7 +390,7 @@ if [[ "$UPDATE_TAP" -eq 1 && "$PUSH" -eq 1 ]]; then
     git clone --quiet "$TAP_PATH" "$TAP_WORKTREE"
     git -C "$TAP_WORKTREE" remote set-url origin "$TAP_REMOTE"
     git -C "$TAP_WORKTREE" fetch --quiet origin main
-    if git ls-remote --exit-code --heads origin "$TAP_BRANCH" >/dev/null 2>&1; then
+    if git -C "$TAP_WORKTREE" ls-remote --exit-code --heads origin "$TAP_BRANCH" >/dev/null 2>&1; then
         git -C "$TAP_WORKTREE" fetch --quiet origin "$TAP_BRANCH"
         git -C "$TAP_WORKTREE" switch --quiet -c "$TAP_BRANCH" "origin/$TAP_BRANCH"
     else
@@ -481,11 +483,14 @@ s/sha256 "[^"]+"/sha256 "$ENV{SHA256}"/;
         die "Homebrew bottle publish workflow did not start"
     gh run watch "$TAP_PUBLISH_RUN" --repo "$TAP_REPO" --exit-status
 
-    [[ "$(gh pr view "$TAP_PR_NUMBER" --repo "$TAP_REPO" --json state --jq .state)" == "MERGED" ]] ||
-        die "Homebrew bottle PR #$TAP_PR_NUMBER was not merged"
+    TAP_PR_STATE="$(gh pr view "$TAP_PR_NUMBER" --repo "$TAP_REPO" --json state --jq .state)"
+    [[ "$TAP_PR_STATE" == "CLOSED" || "$TAP_PR_STATE" == "MERGED" ]] ||
+        die "Homebrew bottle PR #$TAP_PR_NUMBER was not closed by brew pr-pull"
     git -C "$TAP_PATH" pull --ff-only
     grep -Fq "bottle do" "$TAP_PATH/$FORMULA_REL" ||
         die "Homebrew formula does not contain a bottle block after publishing"
+    grep -Eq 'sha256 arm64_[a-z_]+' "$TAP_PATH/$FORMULA_REL" ||
+        die "Homebrew formula does not contain an Apple Silicon bottle"
 
     if command -v brew >/dev/null 2>&1; then
         BREW_TAP_PATH="$(brew --repository nightwatcher314/formula 2>/dev/null || true)"
