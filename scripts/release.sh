@@ -18,7 +18,7 @@ The script updates the shared plugin/server version, runs validation, commits
 the version bump, pushes main, publishes the server package to PyPI, creates
 the v<version> GitHub release with the XPI asset using CHANGELOG.md release
 notes, updates the fixed "release" GitHub release with update.json for Zotero's
-Check for Updates flow, and updates the Homebrew tap formula.
+Check for Updates flow, and publishes the Homebrew formula through a bottle PR.
 
 Before running, add a CHANGELOG.md section like:
   ## v5.1.1 - YYYY-MM-DD
@@ -37,6 +37,17 @@ die() {
     echo "release.sh: $*" >&2
     exit 1
 }
+
+TEMP_PATHS=()
+cleanup() {
+    local path
+    for path in "${TEMP_PATHS[@]}"; do
+        if [[ -n "$path" && -e "$path" ]]; then
+            rm -rf "$path"
+        fi
+    done
+}
+trap cleanup EXIT
 
 require_command() {
     command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
@@ -118,6 +129,8 @@ if [[ "$UPDATE_TAP" -eq 1 && "$PUSH" -eq 1 ]]; then
     [[ -d "$TAP_PATH/.git" ]] || die "Homebrew tap path is not a git repo: $TAP_PATH"
     [[ -f "$TAP_PATH/Formula/zotero-pdf2zh-next.rb" ]] ||
         die "Homebrew formula not found: $TAP_PATH/Formula/zotero-pdf2zh-next.rb"
+    [[ "$(git -C "$TAP_PATH" branch --show-current)" == "main" ]] ||
+        die "Homebrew tap must be on main: $TAP_PATH"
     [[ -z "$(git -C "$TAP_PATH" status --porcelain)" ]] ||
         die "Homebrew tap worktree is dirty; commit or stash changes first"
     require_command curl
@@ -330,7 +343,7 @@ fi
 
 if [[ "$PUBLISH_RELEASE" -eq 1 ]]; then
     NOTES_FILE="$(mktemp)"
-    trap 'rm -f "$NOTES_FILE"' EXIT
+    TEMP_PATHS+=("$NOTES_FILE")
     printf '%s\n\n' "$CHANGELOG_SECTION" >"$NOTES_FILE"
     cat >>"$NOTES_FILE" <<EOF
 Zotero automatic updates use the fixed release asset:
@@ -365,8 +378,25 @@ EOF
 fi
 
 if [[ "$UPDATE_TAP" -eq 1 && "$PUSH" -eq 1 ]]; then
+    TAP_REPO="NightWatcher314/homebrew-formula"
+    TAP_BRANCH="zotero-pdf2zh-next-$TAG"
+    TAP_REMOTE="$(git -C "$TAP_PATH" remote get-url origin)"
+    TAP_TEMP_ROOT="$(mktemp -d)"
+    TAP_WORKTREE="$TAP_TEMP_ROOT/tap"
+    TEMP_PATHS+=("$TAP_TEMP_ROOT")
+
+    git clone --quiet "$TAP_PATH" "$TAP_WORKTREE"
+    git -C "$TAP_WORKTREE" remote set-url origin "$TAP_REMOTE"
+    git -C "$TAP_WORKTREE" fetch --quiet origin main
+    if git ls-remote --exit-code --heads origin "$TAP_BRANCH" >/dev/null 2>&1; then
+        git -C "$TAP_WORKTREE" fetch --quiet origin "$TAP_BRANCH"
+        git -C "$TAP_WORKTREE" switch --quiet -c "$TAP_BRANCH" "origin/$TAP_BRANCH"
+    else
+        git -C "$TAP_WORKTREE" switch --quiet -c "$TAP_BRANCH" origin/main
+    fi
+
     FORMULA_REL="Formula/zotero-pdf2zh-next.rb"
-    FORMULA="$TAP_PATH/$FORMULA_REL"
+    FORMULA="$TAP_WORKTREE/$FORMULA_REL"
     TARBALL_URL="https://github.com/NightWatcher314/zotero-pdf2zh-next/archive/$COMMIT.tar.gz"
     SHA256="$(curl -LfsS "$TARBALL_URL" | shasum -a 256 | awk '{print $1}')"
     [[ -n "$SHA256" ]] || die "failed to compute sha256 for $TARBALL_URL"
@@ -377,14 +407,85 @@ s/version "[^"]+"/version "$ENV{VERSION}"/;
 s/sha256 "[^"]+"/sha256 "$ENV{SHA256}"/;
 ' "$FORMULA"
 
-    git -C "$TAP_PATH" diff -- "$FORMULA_REL"
+    git -C "$TAP_WORKTREE" diff -- "$FORMULA_REL"
     ruby -c "$FORMULA"
-
-    git -C "$TAP_PATH" add "$FORMULA_REL"
-    if ! git -C "$TAP_PATH" diff --cached --quiet; then
-        git -C "$TAP_PATH" commit -m "chore: update zotero-pdf2zh-next to $TAG"
+    if command -v brew >/dev/null 2>&1; then
+        HOMEBREW_NO_AUTO_UPDATE=1 brew style "$FORMULA"
     fi
-    git -C "$TAP_PATH" push origin HEAD
+
+    git -C "$TAP_WORKTREE" add "$FORMULA_REL"
+    if ! git -C "$TAP_WORKTREE" diff --cached --quiet; then
+        git -C "$TAP_WORKTREE" commit -m "chore: update zotero-pdf2zh-next to $TAG"
+    fi
+    TAP_HEAD_SHA="$(git -C "$TAP_WORKTREE" rev-parse HEAD)"
+    git -C "$TAP_WORKTREE" push --set-upstream origin "$TAP_BRANCH"
+
+    TAP_PR_NUMBER="$(gh pr list \
+        --repo "$TAP_REPO" \
+        --head "$TAP_BRANCH" \
+        --state open \
+        --json number \
+        --jq '.[0].number // empty')"
+    if [[ -z "$TAP_PR_NUMBER" ]]; then
+        TAP_PR_URL="$(gh pr create \
+            --repo "$TAP_REPO" \
+            --base main \
+            --head "$TAP_BRANCH" \
+            --title "chore: update zotero-pdf2zh-next to $TAG" \
+            --body "Build and publish Homebrew bottles for zotero-pdf2zh-next $TAG.")"
+        TAP_PR_NUMBER="${TAP_PR_URL##*/}"
+    fi
+
+    TAP_CHECKS_FOUND=0
+    for _ in {1..30}; do
+        if [[ "$(gh pr checks "$TAP_PR_NUMBER" \
+            --repo "$TAP_REPO" \
+            --json name \
+            --jq 'length' 2>/dev/null || true)" -gt 0 ]]; then
+            TAP_CHECKS_FOUND=1
+            break
+        fi
+        sleep 2
+    done
+    [[ "$TAP_CHECKS_FOUND" -eq 1 ]] || die "Homebrew bottle checks did not start for PR #$TAP_PR_NUMBER"
+    gh pr checks "$TAP_PR_NUMBER" --repo "$TAP_REPO" --watch --fail-fast
+
+    PREVIOUS_PUBLISH_RUN="$(gh run list \
+        --repo "$TAP_REPO" \
+        --workflow publish.yml \
+        --event workflow_dispatch \
+        --limit 1 \
+        --json databaseId \
+        --jq '.[0].databaseId // empty')"
+    gh workflow run publish.yml \
+        --repo "$TAP_REPO" \
+        --ref main \
+        -f pull_request="$TAP_PR_NUMBER" \
+        -f head_sha="$TAP_HEAD_SHA"
+
+    TAP_PUBLISH_RUN=""
+    for _ in {1..30}; do
+        TAP_PUBLISH_RUN="$(gh run list \
+            --repo "$TAP_REPO" \
+            --workflow publish.yml \
+            --event workflow_dispatch \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId // empty')"
+        if [[ -n "$TAP_PUBLISH_RUN" && "$TAP_PUBLISH_RUN" != "$PREVIOUS_PUBLISH_RUN" ]]; then
+            break
+        fi
+        sleep 2
+    done
+    [[ -n "$TAP_PUBLISH_RUN" && "$TAP_PUBLISH_RUN" != "$PREVIOUS_PUBLISH_RUN" ]] ||
+        die "Homebrew bottle publish workflow did not start"
+    gh run watch "$TAP_PUBLISH_RUN" --repo "$TAP_REPO" --exit-status
+
+    [[ "$(gh pr view "$TAP_PR_NUMBER" --repo "$TAP_REPO" --json state --jq .state)" == "MERGED" ]] ||
+        die "Homebrew bottle PR #$TAP_PR_NUMBER was not merged"
+    git -C "$TAP_PATH" pull --ff-only
+    grep -Fq "bottle do" "$TAP_PATH/$FORMULA_REL" ||
+        die "Homebrew formula does not contain a bottle block after publishing"
 
     if command -v brew >/dev/null 2>&1; then
         BREW_TAP_PATH="$(brew --repository nightwatcher314/formula 2>/dev/null || true)"
