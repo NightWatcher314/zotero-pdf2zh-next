@@ -60,6 +60,11 @@ jobs:
             - name: Build package
               run: uv build server --out-dir server/dist --clear --no-sources
 
+            - name: Validate package
+              env:
+                  RELEASE_TAG: ${{ inputs.tag }}
+              run: python scripts/check_pypi_artifacts.py server/dist "${RELEASE_TAG#v}"
+
             - name: Publish package
               run: >-
                   uv publish

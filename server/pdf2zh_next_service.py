@@ -340,6 +340,7 @@ def build_settings_input(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         "ocr_workaround": bool(payload.get("ocr")),
         "auto_enable_ocr_workaround": bool(payload.get("auto_ocr")),
+        "translate_table_text": bool(payload.get("translate_table_text", True)),
         "no_auto_extract_glossary": bool(payload.get("no_auto_extract_glossary")),
         service: True,
     }
@@ -638,6 +639,7 @@ def validate_service_config(payload: dict[str, Any], job_id: str) -> ValidationR
             "skip_last_pages": 0,
             "ocr": payload.get("ocr", False),
             "auto_ocr": payload.get("auto_ocr", True),
+            "translate_table_text": payload.get("translate_table_text", True),
             "no_watermark": payload.get("no_watermark", True),
             "no_auto_extract_glossary": payload.get(
                 "no_auto_extract_glossary", False

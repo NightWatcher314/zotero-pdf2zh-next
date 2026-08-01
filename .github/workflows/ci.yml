@@ -53,3 +53,9 @@ jobs:
                   test -n "$UV_LOCK_INDEX"
                   UV_DEFAULT_INDEX="$UV_LOCK_INDEX" uv run --locked python -m unittest discover -s tests
               working-directory: server
+
+            - name: Validate PyPI artifacts
+              run: |
+                  VERSION="$(python -c 'import tomllib; print(tomllib.load(open("server/pyproject.toml", "rb"))["project"]["version"])')"
+                  uv build server --out-dir server/dist --clear --no-sources
+                  python scripts/check_pypi_artifacts.py server/dist "$VERSION"

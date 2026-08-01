@@ -57,6 +57,35 @@ class PDF2zhNextServiceTests(unittest.TestCase):
 
         self.assertTrue(settings_input["no_auto_extract_glossary"])
 
+    def test_build_settings_input_translates_table_text_by_default(self) -> None:
+        settings_input = build_settings_input(
+            {
+                "input_path": "/tmp/paper.pdf",
+                "output_dir": "/tmp/output",
+                "output_modes": ["dual"],
+                "source_lang": "en",
+                "target_lang": "zh-CN",
+                "service": "openai",
+            }
+        )
+
+        self.assertTrue(settings_input["translate_table_text"])
+
+    def test_build_settings_input_can_skip_table_text(self) -> None:
+        settings_input = build_settings_input(
+            {
+                "input_path": "/tmp/paper.pdf",
+                "output_dir": "/tmp/output",
+                "output_modes": ["dual"],
+                "source_lang": "en",
+                "target_lang": "zh-CN",
+                "service": "openai",
+                "translate_table_text": False,
+            }
+        )
+
+        self.assertFalse(settings_input["translate_table_text"])
+
     def test_text_check_bypass_skips_cid_checks_in_context(self) -> None:
         import babeldoc.format.pdf.high_level as babeldoc_high_level
         from babeldoc.format.pdf.document_il.midend import il_translator_llm_only

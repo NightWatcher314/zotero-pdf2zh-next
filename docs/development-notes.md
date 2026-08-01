@@ -45,6 +45,17 @@ scripts/release.sh 5.2.4
 
 服务端入口在 `server/server.py`，真正把插件参数转换为 `pdf2zh_next` 参数的是 `server/pdf2zh_next_service.py`。
 
+PyPI 包内置固定的 `pdf2zh-next`、BabelDOC 和 RapidOCR 核心快照，避免
+PyPI 解析到未验证的新版本，也避免安装上游 Gradio/FastAPI 前端。来源、
+版本、SHA 和许可证见 `server/THIRD_PARTY_NOTICES.md`。更新快照时运行：
+
+```bash
+uv run python scripts/vendor_pdf2zh_runtime.py
+```
+
+生成目录和许可证必须提交。生成后重建 `server/uv.lock`，再跑 wheel/sdist
+检查和 fresh-wheel 安装 smoke；不能只改版本字符串。
+
 新增翻译选项时，通常要同时检查这些位置：
 
 - 插件偏好默认值：`plugin/addon/prefs.js`

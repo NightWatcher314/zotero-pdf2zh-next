@@ -880,6 +880,8 @@ async function checkServerConnection() {
                 poolSize: getPref("poolSize")?.toString() || "0",
                 ocr: getPref("ocr")?.toString() || "false",
                 autoOcr: getPref("autoOcr")?.toString() || "true",
+                translateTableText:
+                    getPref("translateTableText")?.toString() || "true",
                 skipTextChecks:
                     getPref("skipTextChecks")?.toString() || "false",
                 noWatermark: getPref("noWatermark")?.toString() || "true",

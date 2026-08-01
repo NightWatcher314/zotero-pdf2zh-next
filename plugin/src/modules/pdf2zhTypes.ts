@@ -13,6 +13,7 @@ export interface ServerConfig {
     poolSize: string;
     ocr: string;
     autoOcr: string;
+    translateTableText: string;
     skipTextChecks: string;
     noWatermark: string;
     disableTermExtraction: string;

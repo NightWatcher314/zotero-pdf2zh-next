@@ -262,6 +262,18 @@ UV_DEFAULT_INDEX="$UV_LOCK_INDEX" uv --directory server lock --locked
 UV_DEFAULT_INDEX="$UV_LOCK_INDEX" \
     uv run --directory server --locked python -m unittest discover -s tests
 uv build server --out-dir server/dist --clear --no-sources
+uv run --no-project python scripts/check_pypi_artifacts.py server/dist "$VERSION"
+
+PYPI_SMOKE_ROOT="$(mktemp -d)"
+TEMP_PATHS+=("$PYPI_SMOKE_ROOT")
+UV_NO_CONFIG=1 uv venv --python 3.13 "$PYPI_SMOKE_ROOT/venv"
+env -u UV_INDEX_URL -u PIP_INDEX_URL \
+    UV_NO_CONFIG=1 UV_DEFAULT_INDEX=https://pypi.org/simple \
+    uv pip install \
+    --python "$PYPI_SMOKE_ROOT/venv/bin/python" \
+    "server/dist/zotero_pdf2zh_next-$VERSION-py3-none-any.whl"
+"$PYPI_SMOKE_ROOT/venv/bin/python" scripts/check_installed_runtime.py "$VERSION"
+
 CI=true "${PNPM[@]}" --dir plugin install --frozen-lockfile
 "${PNPM[@]}" --dir plugin lint:check
 "${PNPM[@]}" --dir plugin build

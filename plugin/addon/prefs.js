@@ -20,6 +20,7 @@ pref("__prefsPrefix__.openAfterTranslate", false);
 pref("__prefsPrefix__.fontFamily", "auto");
 pref("__prefsPrefix__.ocr", false);
 pref("__prefsPrefix__.autoOcr", true);
+pref("__prefsPrefix__.translateTableText", true);
 pref("__prefsPrefix__.skipTextChecks", false);
 pref("__prefsPrefix__.noWatermark", true);
 pref("__prefsPrefix__.disableTermExtraction", false);

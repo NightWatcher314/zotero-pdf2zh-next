@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import base64
 import binascii
+import importlib
 import importlib.metadata
 import json
 import logging
@@ -275,6 +276,9 @@ def validate_config_request(data: dict[str, Any]):
         "pool_size": parse_int(data.get("poolSize"), 0, minimum=0),
         "ocr": parse_bool(data.get("ocr"), False),
         "auto_ocr": parse_bool(data.get("autoOcr"), True),
+        "translate_table_text": parse_bool(
+            data.get("translateTableText"), True
+        ),
         "skip_text_checks": parse_bool(data.get("skipTextChecks"), False),
         "no_watermark": parse_bool(data.get("noWatermark"), True),
         "no_auto_extract_glossary": parse_bool(
@@ -311,6 +315,9 @@ def prepare_translation_request(
         "skip_last_pages": parse_int(data.get("skipLastPages"), 0, minimum=0),
         "ocr": parse_bool(data.get("ocr"), False),
         "auto_ocr": parse_bool(data.get("autoOcr"), True),
+        "translate_table_text": parse_bool(
+            data.get("translateTableText"), True
+        ),
         "skip_text_checks": parse_bool(data.get("skipTextChecks"), False),
         "no_watermark": parse_bool(data.get("noWatermark"), True),
         "no_auto_extract_glossary": parse_bool(
@@ -521,7 +528,12 @@ def package_version(package_name: str) -> str | None:
     try:
         return importlib.metadata.version(package_name)
     except importlib.metadata.PackageNotFoundError:
-        return None
+        try:
+            module = importlib.import_module(package_name)
+        except ImportError:
+            return None
+        version = getattr(module, "__version__", None)
+        return str(version) if version is not None else None
 
 
 app = create_app()

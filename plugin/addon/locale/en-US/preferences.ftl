@@ -22,6 +22,7 @@ pref-open = Open translated PDF after import
 pref-runtime = pdf2zh_next Runtime
 pref-ocr = Force OCR workaround
 pref-autoOcr = Auto OCR workaround
+pref-translateTableText = Translate text inside tables
 pref-skipTextChecks = Skip text safety checks
 pref-noWatermark = Disable watermark
 pref-disableTermExtraction = Disable term extraction

@@ -8,12 +8,6 @@ resolution-markers = [
     "python_full_version < '3.13' and platform_machine == 's390x'",
 ]
 
-[manifest]
-excludes = [
-    { package = { name = "pdf2zh-next", version = "2.8.2" }, dependencies = ["chardet", "fastapi", "gradio", "gradio-i18n", "gradio-pdf", "legacy-cgi", "pydantic-settings", "pyyaml", "sse-starlette", "uvicorn"] },
-    { package = { name = "rapidocr-onnxruntime", version = "1.4.4" }, dependencies = ["opencv-python"] },
-]
-
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -152,51 +146,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/34/83/bbde3faa84ddcb8eb0eca4b3ffb3221252281db4ce351300fe248c5c70b1/azure_core-1.39.0.tar.gz", hash = "sha256:8a90a562998dd44ce84597590fff6249701b98c0e8797c95fcdd695b54c35d74", size = 367531, upload-time = "2026-03-19T01:31:29.461Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/d6/8ebcd05b01a580f086ac9a97fb9fac65c09a4b012161cc97c21a336e880b/azure_core-1.39.0-py3-none-any.whl", hash = "sha256:4ac7b70fab5438c3f68770649a78daf97833caa83827f91df9c14e0e0ea7d34f", size = 218318, upload-time = "2026-03-19T01:31:31.25Z" },
-]
-
-[[package]]
-name = "babeldoc"
-version = "0.5.24"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "bitstring" },
-    { name = "chardet" },
-    { name = "charset-normalizer" },
-    { name = "configargparse" },
-    { name = "cryptography" },
-    { name = "freetype-py" },
-    { name = "httpx", extra = ["socks"] },
-    { name = "huggingface-hub" },
-    { name = "hyperscan" },
-    { name = "levenshtein" },
-    { name = "msgpack" },
-    { name = "numpy" },
-    { name = "onnx" },
-    { name = "onnxruntime" },
-    { name = "openai" },
-    { name = "opencv-python-headless" },
-    { name = "orjson" },
-    { name = "peewee" },
-    { name = "psutil" },
-    { name = "pydantic" },
-    { name = "pymupdf" },
-    { name = "pyzstd" },
-    { name = "rapidocr-onnxruntime" },
-    { name = "rich" },
-    { name = "rtree" },
-    { name = "scikit-image" },
-    { name = "scikit-learn" },
-    { name = "scipy" },
-    { name = "tenacity" },
-    { name = "tiktoken" },
-    { name = "toml" },
-    { name = "tqdm" },
-    { name = "uharfbuzz" },
-    { name = "xsdata", extra = ["cli", "lxml", "soap"] },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7e/75/7cba00c32b9bb2f3537eb0c0fb03e3d831418182dd80a162413a7b0e312c/babeldoc-0.5.24.tar.gz", hash = "sha256:3f4278c1beeebf8e8fe87782cc196db4b72ffd338b55bf644a2bafe9ec21e1de", size = 16276053, upload-time = "2026-03-26T10:14:43.826Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/64/36/fbb911469a2c744712ba44cbd0fc88cede1ab59b89865b9f4fa4a7b141d7/babeldoc-0.5.24-py3-none-any.whl", hash = "sha256:8810b9d8faecbe9b3f3e41f7af1f5d83cbee060ac16c9f17aa2a81abb149c6f2", size = 5943090, upload-time = "2026-03-26T10:14:41.844Z" },
 ]
 
 [[package]]
@@ -1347,34 +1296,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pdf2zh-next"
-version = "2.8.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "azure-ai-translation-text" },
-    { name = "babeldoc" },
-    { name = "deepl" },
-    { name = "fonttools" },
-    { name = "httpx" },
-    { name = "numpy" },
-    { name = "ollama" },
-    { name = "openai" },
-    { name = "peewee" },
-    { name = "pydantic" },
-    { name = "pymupdf" },
-    { name = "requests" },
-    { name = "rich" },
-    { name = "tenacity" },
-    { name = "tencentcloud-sdk-python-tmt" },
-    { name = "tqdm" },
-    { name = "xinference-client" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/2f/04/7610bc59f5126d3c3e2671fb2c495a3cfab05fb33ab69ddc7c1f9867ecb8/pdf2zh_next-2.8.2.tar.gz", hash = "sha256:4d1df72c106adf673c44bc90e25447304192bdd730c0fc09d5b8654a4218847a", size = 7740544, upload-time = "2026-01-18T02:16:42.143Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/f5/897dbd72b2875411540502ea74e460dc222d8085f1699b2c2972acf3f3cc/pdf2zh_next-2.8.2-py3-none-any.whl", hash = "sha256:5416f8e65828783df9a2323893380145d30846ed7c201539f847307b8689b770", size = 142293, upload-time = "2026-01-18T02:16:40.75Z" },
-]
-
-[[package]]
 name = "peewee"
 version = "4.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1720,24 +1641,6 @@ wheels = [
 ]
 
 [[package]]
-name = "rapidocr-onnxruntime"
-version = "1.4.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-    { name = "onnxruntime" },
-    { name = "pillow" },
-    { name = "pyclipper" },
-    { name = "pyyaml" },
-    { name = "shapely" },
-    { name = "six" },
-    { name = "tqdm" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ba/12/1e5497183bdbe782dbb91bad1d0d2297dba4d2831b2652657f7517bfc6df/rapidocr_onnxruntime-1.4.4-py3-none-any.whl", hash = "sha256:971d7d5f223a7a808662229df1ef69893809d8457d834e6373d3854bc1782cbf", size = 14915192, upload-time = "2025-01-17T01:48:25.104Z" },
-]
-
-[[package]]
 name = "regex"
 version = "2026.4.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1835,31 +1738,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/e9/a4/c2292b95246b9165cc43a0c3757e80995d58bc9b43da5cb47ad6e3535213/rtree-1.4.1-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:f155bc8d6bac9dcd383481dee8c130947a4866db1d16cb6dff442329a038a0dc", size = 1555140, upload-time = "2025-08-13T19:31:58.031Z" },
     { url = "https://files.pythonhosted.org/packages/74/25/5282c8270bfcd620d3e73beb35b40ac4ab00f0a898d98ebeb41ef0989ec8/rtree-1.4.1-py3-none-win_amd64.whl", hash = "sha256:efe125f416fd27150197ab8521158662943a40f87acab8028a1aac4ad667a489", size = 389358, upload-time = "2025-08-13T19:31:59.247Z" },
     { url = "https://files.pythonhosted.org/packages/3f/50/0a9e7e7afe7339bd5e36911f0ceb15fed51945836ed803ae5afd661057fd/rtree-1.4.1-py3-none-win_arm64.whl", hash = "sha256:3d46f55729b28138e897ffef32f7ce93ac335cb67f9120125ad3742a220800f0", size = 355253, upload-time = "2025-08-13T19:32:00.296Z" },
-]
-
-[[package]]
-name = "ruff"
-version = "0.15.11"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e4/8d/192f3d7103816158dfd5ea50d098ef2aec19194e6cbccd4b3485bdb2eb2d/ruff-0.15.11.tar.gz", hash = "sha256:f092b21708bf0e7437ce9ada249dfe688ff9a0954fc94abab05dcea7dcd29c33", size = 4637264, upload-time = "2026-04-16T18:46:26.58Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/02/1e/6aca3427f751295ab011828e15e9bf452200ac74484f1db4be0197b8170b/ruff-0.15.11-py3-none-linux_armv6l.whl", hash = "sha256:e927cfff503135c558eb581a0c9792264aae9507904eb27809cdcff2f2c847b7", size = 10607943, upload-time = "2026-04-16T18:46:05.967Z" },
-    { url = "https://files.pythonhosted.org/packages/e7/26/1341c262e74f36d4e84f3d6f4df0ac68cd53331a66bfc5080daa17c84c0b/ruff-0.15.11-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:7a1b5b2938d8f890b76084d4fa843604d787a912541eae85fd7e233398bbb73e", size = 10988592, upload-time = "2026-04-16T18:46:00.742Z" },
-    { url = "https://files.pythonhosted.org/packages/03/71/850b1d6ffa9564fbb6740429bad53df1094082fe515c8c1e74b6d8d05f18/ruff-0.15.11-py3-none-macosx_11_0_arm64.whl", hash = "sha256:d4176f3d194afbdaee6e41b9ccb1a2c287dba8700047df474abfbe773825d1cb", size = 10338501, upload-time = "2026-04-16T18:46:03.723Z" },
-    { url = "https://files.pythonhosted.org/packages/f2/11/cc1284d3e298c45a817a6aadb6c3e1d70b45c9b36d8d9cce3387b495a03a/ruff-0.15.11-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:3b17c886fb88203ced3afe7f14e8d5ae96e9d2f4ccc0ee66aa19f2c2675a27e4", size = 10670693, upload-time = "2026-04-16T18:46:41.941Z" },
-    { url = "https://files.pythonhosted.org/packages/ce/9e/f8288b034ab72b371513c13f9a41d9ba3effac54e24bfb467b007daee2ca/ruff-0.15.11-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:49fafa220220afe7758a487b048de4c8f9f767f37dfefad46b9dd06759d003eb", size = 10416177, upload-time = "2026-04-16T18:46:21.717Z" },
-    { url = "https://files.pythonhosted.org/packages/85/71/504d79abfd3d92532ba6bbe3d1c19fada03e494332a59e37c7c2dabae427/ruff-0.15.11-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:f2ab8427e74a00d93b8bda1307b1e60970d40f304af38bccb218e056c220120d", size = 11221886, upload-time = "2026-04-16T18:46:15.086Z" },
-    { url = "https://files.pythonhosted.org/packages/43/5a/947e6ab7a5ad603d65b474be15a4cbc6d29832db5d762cd142e4e3a74164/ruff-0.15.11-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:195072c0c8e1fc8f940652073df082e37a5d9cb43b4ab1e4d0566ab8977a13b7", size = 12075183, upload-time = "2026-04-16T18:46:07.944Z" },
-    { url = "https://files.pythonhosted.org/packages/9f/a1/0b7bb6268775fdd3a0818aee8efd8f5b4e231d24dd4d528ced2534023182/ruff-0.15.11-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:a3a0996d486af3920dec930a2e7daed4847dfc12649b537a9335585ada163e9e", size = 11516575, upload-time = "2026-04-16T18:46:31.687Z" },
-    { url = "https://files.pythonhosted.org/packages/30/c3/bb5168fc4d233cc06e95f482770d0f3c87945a0cd9f614b90ea8dc2f2833/ruff-0.15.11-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1bef2cb556d509259f1fe440bb9cd33c756222cf0a7afe90d15edf0866702431", size = 11306537, upload-time = "2026-04-16T18:46:36.988Z" },
-    { url = "https://files.pythonhosted.org/packages/e4/92/4cfae6441f3967317946f3b788136eecf093729b94d6561f963ed810c82e/ruff-0.15.11-py3-none-manylinux_2_31_riscv64.whl", hash = "sha256:030d921a836d7d4a12cf6e8d984a88b66094ccb0e0f17ddd55067c331191bf19", size = 11296813, upload-time = "2026-04-16T18:46:24.182Z" },
-    { url = "https://files.pythonhosted.org/packages/43/26/972784c5dde8313acde8ac71ba8ac65475b85db4a2352a76c9934361f9bc/ruff-0.15.11-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:0e783b599b4577788dbbb66b9addcef87e9a8832f4ce0c19e34bf55543a2f890", size = 10633136, upload-time = "2026-04-16T18:46:39.802Z" },
-    { url = "https://files.pythonhosted.org/packages/5b/53/3985a4f185020c2f367f2e08a103032e12564829742a1b417980ce1514a0/ruff-0.15.11-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:ae90592246625ba4a34349d68ec28d4400d75182b71baa196ddb9f82db025ef5", size = 10424701, upload-time = "2026-04-16T18:46:10.381Z" },
-    { url = "https://files.pythonhosted.org/packages/d3/57/bf0dfb32241b56c83bb663a826133da4bf17f682ba8c096973065f6e6a68/ruff-0.15.11-py3-none-musllinux_1_2_i686.whl", hash = "sha256:1f111d62e3c983ed20e0ca2e800f8d77433a5b1161947df99a5c2a3fb60514f0", size = 10873887, upload-time = "2026-04-16T18:46:29.157Z" },
-    { url = "https://files.pythonhosted.org/packages/02/05/e48076b2a57dc33ee8c7a957296f97c744ca891a8ffb4ffb1aaa3b3f517d/ruff-0.15.11-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:06f483d6646f59eaffba9ae30956370d3a886625f511a3108994000480621d1c", size = 11404316, upload-time = "2026-04-16T18:46:19.462Z" },
-    { url = "https://files.pythonhosted.org/packages/88/27/0195d15fe7a897cbcba0904792c4b7c9fdd958456c3a17d2ea6093716a9a/ruff-0.15.11-py3-none-win32.whl", hash = "sha256:476a2aa56b7da0b73a3ee80b6b2f0e19cce544245479adde7baa65466664d5f3", size = 10655535, upload-time = "2026-04-16T18:46:12.47Z" },
-    { url = "https://files.pythonhosted.org/packages/3a/5e/c927b325bd4c1d3620211a4b96f47864633199feed60fa936025ab27e090/ruff-0.15.11-py3-none-win_amd64.whl", hash = "sha256:8b6756d88d7e234fb0c98c91511aae3cd519d5e3ed271cae31b20f39cb2a12a3", size = 11779692, upload-time = "2026-04-16T18:46:17.268Z" },
-    { url = "https://files.pythonhosted.org/packages/63/b6/aeadee5443e49baa2facd51131159fd6301cc4ccfc1541e4df7b021c37dd/ruff-0.15.11-py3-none-win_arm64.whl", hash = "sha256:063fed18cc1bbe0ee7393957284a6fe8b588c6a406a285af3ee3f46da2391ee4", size = 11032614, upload-time = "2026-04-16T18:46:34.487Z" },
 ]
 
 [[package]]
@@ -2189,15 +2067,6 @@ wheels = [
 ]
 
 [[package]]
-name = "toposort"
-version = "1.10"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/69/19/8e955d90985ecbd3b9adb2a759753a6840da2dff3c569d412b2c9217678b/toposort-1.10.tar.gz", hash = "sha256:bfbb479c53d0a696ea7402601f4e693c97b0367837c8898bc6471adfca37a6bd", size = 11132, upload-time = "2023-02-27T13:59:51.834Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f6/17/57b444fd314d5e1593350b9a31d000e7411ba8e17ce12dc7ad54ca76b810/toposort-1.10-py3-none-any.whl", hash = "sha256:cbdbc0d0bee4d2695ab2ceec97fe0679e9c10eab4b2a87a9372b929e70563a87", size = 8500, upload-time = "2023-02-25T20:07:06.538Z" },
-]
-
-[[package]]
 name = "tqdm"
 version = "4.67.3"
 source = { registry = "https://pypi.org/simple" }
@@ -2309,12 +2178,6 @@ wheels = [
 ]
 
 [package.optional-dependencies]
-cli = [
-    { name = "click" },
-    { name = "jinja2" },
-    { name = "ruff" },
-    { name = "toposort" },
-]
 lxml = [
     { name = "lxml" },
 ]
@@ -2395,16 +2258,104 @@ name = "zotero-pdf2zh-next"
 version = "5.2.9"
 source = { editable = "." }
 dependencies = [
+    { name = "azure-ai-translation-text" },
+    { name = "bitstring" },
+    { name = "chardet" },
+    { name = "charset-normalizer" },
+    { name = "configargparse" },
+    { name = "cryptography" },
+    { name = "deepl" },
     { name = "flask" },
-    { name = "pdf2zh-next" },
+    { name = "fonttools" },
+    { name = "freetype-py" },
+    { name = "httpx", extra = ["socks"] },
+    { name = "huggingface-hub" },
+    { name = "hyperscan" },
+    { name = "levenshtein" },
+    { name = "msgpack" },
+    { name = "numpy" },
+    { name = "ollama" },
+    { name = "onnx" },
+    { name = "onnxruntime" },
+    { name = "openai" },
+    { name = "opencv-python-headless" },
+    { name = "orjson" },
+    { name = "peewee" },
+    { name = "pillow" },
+    { name = "psutil" },
+    { name = "pyclipper" },
+    { name = "pydantic" },
+    { name = "pymupdf" },
     { name = "pypdf" },
+    { name = "pyyaml" },
+    { name = "pyzstd" },
+    { name = "requests" },
+    { name = "rich" },
+    { name = "rtree" },
+    { name = "scikit-image" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+    { name = "shapely" },
+    { name = "six" },
+    { name = "tenacity" },
+    { name = "tencentcloud-sdk-python-tmt" },
+    { name = "tiktoken" },
+    { name = "toml" },
     { name = "tomlkit" },
+    { name = "tqdm" },
+    { name = "uharfbuzz" },
+    { name = "xinference-client" },
+    { name = "xsdata", extra = ["lxml", "soap"] },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "azure-ai-translation-text", specifier = "<=1.0.1" },
+    { name = "bitstring", specifier = ">=4.3.0" },
+    { name = "chardet", specifier = ">=5.2.0" },
+    { name = "charset-normalizer", specifier = ">=2.0.0" },
+    { name = "configargparse", specifier = ">=1.7" },
+    { name = "cryptography", specifier = ">=36.0.0" },
+    { name = "deepl" },
     { name = "flask", specifier = ">=3.1.0,<4" },
-    { name = "pdf2zh-next", specifier = ">=2.8.2" },
+    { name = "fonttools" },
+    { name = "freetype-py", specifier = ">=2.5.1" },
+    { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
+    { name = "huggingface-hub", specifier = ">=0.27.0" },
+    { name = "hyperscan", specifier = ">=0.7.13" },
+    { name = "levenshtein", specifier = ">=0.27.1" },
+    { name = "msgpack", specifier = ">=1.1.0" },
+    { name = "numpy", specifier = ">=2.0.2,<3" },
+    { name = "ollama" },
+    { name = "onnx", specifier = ">=1.18.0" },
+    { name = "onnxruntime", specifier = ">=1.16.1" },
+    { name = "openai", specifier = ">=1.59.3" },
+    { name = "opencv-python-headless", specifier = ">=4.10.0.84" },
+    { name = "orjson", specifier = ">=3.10.14" },
+    { name = "peewee", specifier = ">=3.17.8" },
+    { name = "pillow" },
+    { name = "psutil", specifier = ">=7.0.0" },
+    { name = "pyclipper", specifier = ">=1.2.0" },
+    { name = "pydantic", specifier = ">=2.10.6" },
+    { name = "pymupdf", specifier = ">=1.25.1,<1.25.3" },
     { name = "pypdf", specifier = ">=6.0.0,<7" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "pyzstd", specifier = ">=0.17.0" },
+    { name = "requests" },
+    { name = "rich", specifier = ">=13.9.4" },
+    { name = "rtree", specifier = ">=1.4.0" },
+    { name = "scikit-image", specifier = ">=0.25.2" },
+    { name = "scikit-learn", specifier = ">=1.7.1" },
+    { name = "scipy", specifier = ">=1.15.3" },
+    { name = "shapely", specifier = ">=1.7.1,!=2.0.4" },
+    { name = "six", specifier = ">=1.15.0" },
+    { name = "tenacity", specifier = ">=9.0.0" },
+    { name = "tencentcloud-sdk-python-tmt" },
+    { name = "tiktoken", specifier = ">=0.9.0" },
+    { name = "toml", specifier = ">=0.10.2" },
     { name = "tomlkit", specifier = ">=0.13.0,<1" },
+    { name = "tqdm", specifier = ">=4.67.1" },
+    { name = "uharfbuzz", specifier = ">=0.50.2" },
+    { name = "xinference-client" },
+    { name = "xsdata", extras = ["lxml", "soap"], specifier = ">=24.12" },
 ]

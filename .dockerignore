@@ -3,7 +3,10 @@
 .vscode
 plugin
 server/.venv
+server/build
 server/cache
+server/dist
+server/translates
 server/__pycache__
 server/tests
 server/*.pdf

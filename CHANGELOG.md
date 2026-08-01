@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+## v5.3.0 - 2026-08-01
+
+- Zotero 偏好页新增“翻译表格内文字”开关；默认开启，可按任务关闭，并完整传递到 `pdf2zh_next` 的 `translate_table_text`。
+- PyPI 发行包固定内置 `pdf2zh-next 2.8.2`、BabelDOC `0.5.24` 和 RapidOCR `1.4.4` 核心快照，避免上游版本漂移。
+- PyPI 安装不再拉取 Gradio、FastAPI、pandas 等上游完整 Web UI 依赖；fresh Python 3.13 环境验证为 105 个 distribution，OCR 模型加载通过。
+- Homebrew 依赖图去掉 BabelDOC 未使用的 `xsdata` CLI extra 和 Ruff，并在构建 bottle 时裁掉依赖包 tests、OpenCV/skimage 示例数据。
+- wheel/sdist 新增固定来源 SHA、第三方许可证、内容检查和 fresh-wheel 安装 smoke；Docker 构建同步包含固定核心快照。
+
 ## v5.2.9 - 2026-07-31
 
 - 源码 `uv sync`、Docker 和 Homebrew 构建去掉重复的 GUI 版 `opencv-python`，只保留 BabelDOC 已依赖的 `opencv-python-headless`。

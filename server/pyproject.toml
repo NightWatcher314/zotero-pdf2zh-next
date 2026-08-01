@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,30 +8,57 @@ version = "5.2.9"
 description = "Minimal pdf2zh_next bridge for the Zotero plugin"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSES/*.txt", "THIRD_PARTY_NOTICES.md"]
 dependencies = [
+    "azure-ai-translation-text<=1.0.1",
+    "bitstring>=4.3.0",
+    "chardet>=5.2.0",
+    "charset-normalizer>=2.0.0",
+    "configargparse>=1.7",
+    "cryptography>=36.0.0",
+    "deepl",
     "flask>=3.1.0,<4",
-    "pdf2zh_next>=2.8.2",
+    "fonttools",
+    "freetype-py>=2.5.1",
+    "httpx[socks]>=0.28.1",
+    "huggingface-hub>=0.27.0",
+    "hyperscan>=0.7.13",
+    "levenshtein>=0.27.1",
+    "msgpack>=1.1.0",
+    "numpy>=2.0.2,<3",
+    "ollama",
+    "onnx>=1.18.0",
+    "onnxruntime>=1.16.1",
+    "openai>=1.59.3",
+    "opencv-python-headless>=4.10.0.84",
+    "orjson>=3.10.14",
+    "peewee>=3.17.8",
+    "pillow",
+    "psutil>=7.0.0",
+    "pyclipper>=1.2.0",
+    "pydantic>=2.10.6",
+    "pymupdf>=1.25.1,<1.25.3",
     "pypdf>=6.0.0,<7",
+    "pyyaml>=6.0.2",
+    "pyzstd>=0.17.0",
+    "requests",
+    "rich>=13.9.4",
+    "rtree>=1.4.0",
+    "scikit-image>=0.25.2",
+    "scikit-learn>=1.7.1",
+    "scipy>=1.15.3",
+    "shapely!=2.0.4,>=1.7.1",
+    "six>=1.15.0",
+    "tenacity>=9.0.0",
+    "tencentcloud-sdk-python-tmt",
+    "tiktoken>=0.9.0",
+    "toml>=0.10.2",
     "tomlkit>=0.13.0,<1",
-]
-
-[tool.uv]
-exclude-dependencies = [
-    { package = { name = "pdf2zh-next", version = "2.8.2" }, dependencies = [
-        "chardet",
-        "fastapi",
-        "gradio",
-        "gradio-i18n",
-        "gradio-pdf",
-        "legacy-cgi",
-        "pydantic-settings",
-        "pyyaml",
-        "sse-starlette",
-        "uvicorn",
-    ] },
-    { package = { name = "rapidocr-onnxruntime", version = "1.4.4" }, dependencies = [
-        "opencv-python",
-    ] },
+    "tqdm>=4.67.1",
+    "uharfbuzz>=0.50.2",
+    "xinference-client",
+    "xsdata[lxml,soap]>=24.12",
 ]
 
 [project.scripts]
@@ -39,3 +66,25 @@ zotero-pdf2zh-next = "server:main"
 
 [tool.setuptools]
 py-modules = ["server", "task_manager", "pdf2zh_next_service"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pdf2zh_next*", "babeldoc*", "rapidocr_onnxruntime*"]
+
+[tool.setuptools.package-data]
+"*" = [
+    "*.md",
+    "*.onnx",
+    "*.pickle.gz",
+    "*.png",
+    "*.rnc",
+    "*.rng",
+    "*.txt",
+    "*.typed",
+    "*.xsd",
+    "*.yaml",
+    "LICENSE",
+    "cmap/*.pickle.gz",
+    "cmap/*.txt",
+    "models/*.onnx",
+]
