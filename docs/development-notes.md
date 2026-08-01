@@ -151,6 +151,26 @@ PyPI Trusted Publisher 的绑定必须保持为：owner `NightWatcher314`、repo
 
 Homebrew formula 必须继续 pin `python@3.13`。目前 `pdf2zh_next -> pydantic-core` 依赖链在 Python 3.14 上不应被假定可用。
 
+### Homebrew bottle 发布与瘦身
+
+Formula 的源码回退路径必须忽略用户或 Host 的 uv/pip 镜像配置，并显式使用公共 PyPI。否则 bottle 覆盖范围之外的机器仍可能被锁到私有镜像。
+
+可以从 bottle 中删除依赖包里目录名恰好为 `test` 或 `tests` 的测试数据、Ruff 可执行文件，以及 `cv2/data`、`skimage/data` 示例数据。不要删除名为 `testing` 的目录：SciPy 导入会经过 `numpy.testing`，误删会让运行时 smoke 失败。裁剪后至少验证：
+
+- `pdf2zh_next`、BabelDOC、RapidOCR、OpenCV、scikit-image 和 SciPy 可导入。
+- RapidOCR 能完成模型加载 smoke。
+- Formula test 确认被裁剪路径不存在。
+
+`v5.3.0` 的等价 locked build 从 692180 KiB 降到 574520 KiB，减少约 114.9 MiB。不要把这个未压缩对比直接和 bottle 下载体积或 `brew` 的安装摘要混用。
+
+CI job 成功不等于该平台一定生成了 bottle。例如 Intel macOS runner 可能因为某个依赖没有 bottle 而正常跳过构建。发布完成需要同时确认：
+
+- workflow artifacts 确实包含目标平台的 `*.bottle.*`。
+- tap `main` 的 Formula `bottle do` 已写入对应平台 SHA。
+- GitHub bottle release 已有对应资产；本机验证时 `brew info --json=v2` 显示 `poured_from_bottle: true`。
+
+当前发布覆盖 Apple Silicon Sonoma、Apple Silicon Tahoe 和 Linux x86_64。Intel macOS 回退到源码构建。
+
 ## README 的边界
 
 README 保持给使用者看的内容：
