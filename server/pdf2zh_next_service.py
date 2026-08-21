@@ -329,28 +329,34 @@ def build_settings_input(payload: dict[str, Any]) -> dict[str, Any]:
     service = payload["service"]
 
     settings_input: dict[str, Any] = {
-        "lang_in": payload["source_lang"],
-        "lang_out": payload["target_lang"],
-        "output": str(output_dir),
-        "qps": max(int(payload.get("qps", 8) or 8), 1),
-        "no_mono": "mono" not in output_modes,
-        "no_dual": "dual" not in output_modes,
-        "watermark_output_mode": (
-            "no_watermark" if payload.get("no_watermark", True) else "watermarked"
-        ),
-        "ocr_workaround": bool(payload.get("ocr")),
-        "auto_enable_ocr_workaround": bool(payload.get("auto_ocr")),
-        "translate_table_text": bool(payload.get("translate_table_text", True)),
-        "no_auto_extract_glossary": bool(payload.get("no_auto_extract_glossary")),
+        "translation": {
+            "lang_in": payload["source_lang"],
+            "lang_out": payload["target_lang"],
+            "output": str(output_dir),
+            "qps": max(int(payload.get("qps", 8) or 8), 1),
+            "no_auto_extract_glossary": bool(
+                payload.get("no_auto_extract_glossary")
+            ),
+        },
+        "pdf": {
+            "no_mono": "mono" not in output_modes,
+            "no_dual": "dual" not in output_modes,
+            "watermark_output_mode": (
+                "no_watermark" if payload.get("no_watermark", True) else "watermarked"
+            ),
+            "ocr_workaround": bool(payload.get("ocr")),
+            "auto_enable_ocr_workaround": bool(payload.get("auto_ocr")),
+            "translate_table_text": bool(payload.get("translate_table_text", True)),
+        },
         service: True,
     }
 
     if payload.get("pool_size"):
-        settings_input["pool_max_workers"] = int(payload["pool_size"])
+        settings_input["translation"]["pool_max_workers"] = int(payload["pool_size"])
 
     font_family = payload.get("font_family")
     if font_family and font_family != "auto":
-        settings_input["primary_font_family"] = font_family
+        settings_input["translation"]["primary_font_family"] = font_family
 
     skip_last_pages = int(payload.get("skip_last_pages", 0) or 0)
     if skip_last_pages > 0:
@@ -360,7 +366,7 @@ def build_settings_input(payload: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(
                 f"skipLastPages={skip_last_pages} removes every page from {input_path.name}"
             )
-        settings_input["pages"] = f"1-{last_page}"
+        settings_input["pdf"]["pages"] = f"1-{last_page}"
 
     llm_api = payload.get("llm_api") or {}
     detail = build_service_detail(service, llm_api)

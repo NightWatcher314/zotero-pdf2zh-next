@@ -12,6 +12,7 @@ sys.path.insert(0, str(SERVER_DIR))
 
 from pdf2zh_next_service import build_settings_input
 from pdf2zh_next_service import collect_output_files
+from pdf2zh_next_service import create_runtime_settings
 from pdf2zh_next_service import diagnose_service_error
 from pdf2zh_next_service import install_text_check_bypass
 from pdf2zh_next_service import run_live_translator_test
@@ -42,7 +43,7 @@ class PDF2zhNextServiceTests(unittest.TestCase):
             self.assertEqual(persisted_path.read_bytes(), b"pdf")
             self.assertFalse(generated_path.exists())
 
-    def test_build_settings_input_disables_auto_extract_glossary(self) -> None:
+    def test_build_settings_input_nests_translation_settings(self) -> None:
         settings_input = build_settings_input(
             {
                 "input_path": "/tmp/paper.pdf",
@@ -55,9 +56,9 @@ class PDF2zhNextServiceTests(unittest.TestCase):
             }
         )
 
-        self.assertTrue(settings_input["no_auto_extract_glossary"])
+        self.assertTrue(settings_input["translation"]["no_auto_extract_glossary"])
 
-    def test_build_settings_input_translates_table_text_by_default(self) -> None:
+    def test_build_settings_input_nests_pdf_settings(self) -> None:
         settings_input = build_settings_input(
             {
                 "input_path": "/tmp/paper.pdf",
@@ -69,7 +70,7 @@ class PDF2zhNextServiceTests(unittest.TestCase):
             }
         )
 
-        self.assertTrue(settings_input["translate_table_text"])
+        self.assertTrue(settings_input["pdf"]["translate_table_text"])
 
     def test_build_settings_input_can_skip_table_text(self) -> None:
         settings_input = build_settings_input(
@@ -84,7 +85,64 @@ class PDF2zhNextServiceTests(unittest.TestCase):
             }
         )
 
-        self.assertFalse(settings_input["translate_table_text"])
+        self.assertFalse(settings_input["pdf"]["translate_table_text"])
+
+    def test_create_runtime_settings_preserves_nested_translation_and_pdf_options(
+        self,
+    ) -> None:
+        settings = create_runtime_settings(
+            {
+                "input_path": "/tmp/paper.pdf",
+                "output_dir": "/tmp/output",
+                "output_modes": ["dual"],
+                "source_lang": "en",
+                "target_lang": "zh-CN",
+                "service": "openai",
+                "qps": 8,
+                "pool_size": 3,
+                "font_family": "sans-serif",
+                "ocr": False,
+                "auto_ocr": True,
+                "translate_table_text": False,
+                "no_watermark": True,
+                "no_auto_extract_glossary": True,
+                "llm_api": {
+                    "model": "gpt-4o-mini",
+                    "apiKey": "test-key",
+                    "apiUrl": "https://example.com/v1",
+                },
+            }
+        )
+
+        self.assertEqual(settings.translation.output, "/tmp/output")
+        self.assertEqual(settings.translation.lang_in, "en")
+        self.assertEqual(settings.translation.lang_out, "zh-CN")
+        self.assertEqual(settings.translation.qps, 8)
+        self.assertEqual(settings.translation.pool_max_workers, 3)
+        self.assertEqual(settings.translation.primary_font_family, "sans-serif")
+        self.assertTrue(settings.translation.no_auto_extract_glossary)
+        self.assertTrue(settings.pdf.no_mono)
+        self.assertFalse(settings.pdf.no_dual)
+        self.assertEqual(settings.pdf.watermark_output_mode, "no_watermark")
+        self.assertFalse(settings.pdf.ocr_workaround)
+        self.assertTrue(settings.pdf.auto_enable_ocr_workaround)
+        self.assertFalse(settings.pdf.translate_table_text)
+
+        manual_settings = create_runtime_settings(
+            {
+                "input_path": "/tmp/paper.pdf",
+                "output_dir": "/tmp/output",
+                "output_modes": ["dual"],
+                "source_lang": "en",
+                "target_lang": "zh-CN",
+                "service": "openai",
+                "ocr": True,
+                "auto_ocr": False,
+                "llm_api": {"apiKey": "test-key"},
+            }
+        )
+        self.assertTrue(manual_settings.pdf.ocr_workaround)
+        self.assertFalse(manual_settings.pdf.auto_enable_ocr_workaround)
 
     def test_text_check_bypass_skips_cid_checks_in_context(self) -> None:
         import babeldoc.format.pdf.high_level as babeldoc_high_level
