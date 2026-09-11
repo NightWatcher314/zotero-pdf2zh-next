@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: scripts/release.sh <version> [--no-push] [--no-release] [--no-pypi] [--tap-path <path>] [--no-tap]
+Usage: scripts/release.sh <version> [--no-push] [--no-release] [--no-pypi] [--no-docker] [--tap-path <path>] [--no-tap]
 
 Build, validate, push, and publish a zotero-pdf2zh-next release.
 
@@ -18,7 +18,8 @@ The script updates the shared plugin/server version, runs validation, commits
 the version bump, pushes main, publishes the server package to PyPI, creates
 the v<version> GitHub release with the XPI asset using CHANGELOG.md release
 notes, updates the fixed "release" GitHub release with update.json for Zotero's
-Check for Updates flow, and publishes the Homebrew formula through a bottle PR.
+Check for Updates flow, publishes a tested Docker image through GitHub Actions,
+and publishes the Homebrew formula through a bottle PR.
 
 Before running, add a CHANGELOG.md section like:
   ## v5.1.1 - YYYY-MM-DD
@@ -30,6 +31,8 @@ when present.
 
 PyPI publishing uses UV_PUBLISH_TOKEN when available. Otherwise the script
 dispatches the trusted-publishing workflow. Use --no-pypi to skip upload.
+Docker publishing requires the DOCKER_IMAGE repository variable and registry
+credentials (GHCR uses GITHUB_TOKEN). Use --no-docker to skip image publishing.
 EOF
 }
 
@@ -69,6 +72,7 @@ PUSH=1
 PUBLISH_RELEASE=1
 UPDATE_TAP=1
 PUBLISH_PYPI=1
+PUBLISH_DOCKER=1
 TAP_PATH=""
 PYPI_TOKEN="${UV_PUBLISH_TOKEN:-}"
 unset UV_PUBLISH_TOKEN
@@ -79,12 +83,17 @@ while [[ $# -gt 0 ]]; do
             PUSH=0
             PUBLISH_RELEASE=0
             PUBLISH_PYPI=0
+            PUBLISH_DOCKER=0
             ;;
         --no-release)
             PUBLISH_RELEASE=0
+            PUBLISH_DOCKER=0
             ;;
         --no-pypi)
             PUBLISH_PYPI=0
+            ;;
+        --no-docker)
+            PUBLISH_DOCKER=0
             ;;
         --tap-path)
             [[ $# -ge 2 ]] || die "--tap-path requires a path"
@@ -144,8 +153,18 @@ BRANCH="$(git branch --show-current)"
 git diff --quiet || die "tracked worktree changes exist; commit or stash them first"
 git diff --cached --quiet || die "staged changes exist; commit or unstage them first"
 
+if [[ "$PUBLISH_DOCKER" -eq 1 ]]; then
+    [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+        die "Docker publishing currently requires a stable version; use --no-docker for prereleases"
+fi
+
 TAG="v$VERSION"
 GITHUB_REPO="NightWatcher314/zotero-pdf2zh-next"
+if [[ "$PUBLISH_DOCKER" -eq 1 ]]; then
+    DOCKER_IMAGE="$(gh variable get DOCKER_IMAGE --repo "$GITHUB_REPO")"
+    [[ "$DOCKER_IMAGE" =~ ^[a-z0-9.-]+/[a-z0-9._/-]+$ ]] ||
+        die "Set DOCKER_IMAGE to a registry-qualified repository, or use --no-docker"
+fi
 PYPI_PACKAGE="zotero-pdf2zh-next"
 PYPI_VERSION_URL="https://pypi.org/pypi/$PYPI_PACKAGE/$VERSION/json"
 PYPI_CHECK_URL="https://pypi.org/simple/$PYPI_PACKAGE/"
@@ -396,6 +415,25 @@ EOF
             --notes "Stable update manifest used by Zotero Check for Updates." \
             --latest=false
     fi
+fi
+
+if [[ "$PUBLISH_DOCKER" -eq 1 ]]; then
+    PREVIOUS_DOCKER_RUN="$(gh run list \
+        --repo "$GITHUB_REPO" --workflow publish-docker.yml \
+        --event workflow_dispatch --limit 1 \
+        --json databaseId --jq '.[0].databaseId // 0')"
+    gh workflow run publish-docker.yml --repo "$GITHUB_REPO" --ref "$BRANCH" -f tag="$TAG"
+    DOCKER_RUN=""
+    for _ in {1..30}; do
+        DOCKER_RUN="$(gh run list \
+            --repo "$GITHUB_REPO" --workflow publish-docker.yml \
+            --event workflow_dispatch --limit 20 --json databaseId,displayTitle \
+            --jq ".[] | select(.databaseId > $PREVIOUS_DOCKER_RUN and .displayTitle == \"Publish Docker $TAG\") | .databaseId" | head -n 1)"
+        [[ -n "$DOCKER_RUN" ]] && break
+        sleep 2
+    done
+    [[ -n "$DOCKER_RUN" ]] || die "Docker publish workflow did not start"
+    gh run watch "$DOCKER_RUN" --repo "$GITHUB_REPO" --exit-status
 fi
 
 if [[ "$UPDATE_TAP" -eq 1 && "$PUSH" -eq 1 ]]; then

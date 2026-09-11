@@ -153,9 +153,27 @@ PyPI Trusted Publisher 的绑定必须保持为：owner `NightWatcher314`、repo
 
 同一次 release commit 的 GitHub Release 或 PyPI 其中一端已存在时，脚本会校验 tag/commit 和 PyPI wheel/sdist 后补齐缺失步骤。旧版本 backfill 必须从对应 tag 构建，不能从已前进的 `main` 直接重发。不要恢复单独的 tag 发布 workflow；`scripts/release.sh` 是唯一发版入口。
 
-如果临时不想上传 PyPI，可以传 `--no-pypi`；默认发版会同时发布 XPI、PyPI 和 Homebrew。
+如果临时不想上传 PyPI，可以传 `--no-pypi`；默认稳定版发版会同时发布 XPI、PyPI、Docker 和 Homebrew。
 
 Homebrew formula 必须继续 pin `python@3.13`。目前 `pdf2zh_next -> pydantic-core` 依赖链在 Python 3.14 上不应被假定可用。
+
+### Docker 镜像 CI
+
+`.github/workflows/publish-docker.yml` 由 `scripts/release.sh` 在 GitHub Release 创建后触发并等待；也支持手动补发已有稳定版 tag。`--no-docker` 跳过镜像发布，`--no-push` / `--no-release` 同时跳过；预发布版本需使用 `--no-docker`。不会自动更新 NAS stack。
+
+仓库 Actions 配置：
+
+- Variable `DOCKER_IMAGE`：完整且小写的镜像仓库路径，不含 tag。例如 `ghcr.io/nightwatcher314/zotero-pdf2zh-next` 或 `docker.io/<username>/zotero-pdf2zh-next`；Harbor 使用实际 registry/项目路径。
+- GHCR 使用内置 `GITHUB_TOKEN` 和 `packages: write`，无需另交凭据。首次发布后核验包可见性；面向匿名用户分发时设为 public。
+- Docker Hub / Harbor 使用 Secrets `DOCKER_USERNAME` 和 `DOCKER_TOKEN`。Docker Hub 用有 push 权限的访问令牌，Harbor 用限定项目的 robot；不要使用账号密码或 OIDC 个人 secret，不要把令牌写进仓库或聊天。
+
+CI 从指定 tag 构建 `linux/amd64` 镜像，先核对插件、服务端和 tag 版本，再运行已有 `check_installed_runtime.py`（含 OCR 初始化）及 HTTP `/health` 检查。通过后推送版本 tag；只有目标版本仍为 GitHub 最新稳定 Release 时才更新 `latest`，补发旧版不会覆盖它。发布摘要给出可供 Dockge 固定部署的 digest。
+
+手动补发：
+
+```bash
+gh workflow run publish-docker.yml --repo NightWatcher314/zotero-pdf2zh-next --ref main -f tag=v5.3.1
+```
 
 ### Homebrew bottle 发布与瘦身
 

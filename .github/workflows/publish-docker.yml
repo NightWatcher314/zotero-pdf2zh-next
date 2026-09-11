@@ -1,0 +1,132 @@
+name: Publish Docker
+run-name: Publish Docker ${{ inputs.tag }}
+
+on:
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: Existing release tag to build and publish
+                required: true
+                type: string
+
+concurrency:
+    group: publish-docker
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+    packages: write
+
+jobs:
+    publish:
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+        env:
+            RELEASE_TAG: ${{ inputs.tag }}
+            IMAGE: ${{ vars.DOCKER_IMAGE }}
+        steps:
+            - name: Checkout release tag
+              uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.tag }}
+                  fetch-depth: 0
+
+            - name: Verify release and image destination
+              id: metadata
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+                  [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+                  [[ "$IMAGE" =~ ^[a-z0-9.-]+/[a-z0-9._/-]+$ ]]
+                  test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
+                  gh release view "$RELEASE_TAG" --json isDraft,isPrerelease |
+                    jq -e '.isDraft == false and .isPrerelease == false'
+                  python - "$RELEASE_TAG" <<'PY'
+                  import json
+                  import re
+                  import sys
+                  import tomllib
+                  from pathlib import Path
+
+                  version = sys.argv[1].removeprefix("v")
+                  plugin = json.loads(Path("plugin/package.json").read_text())["version"]
+                  server = tomllib.loads(Path("server/pyproject.toml").read_text())["project"]["version"]
+                  runtime = re.search(r'^VERSION = "([^"]+)"$', Path("server/server.py").read_text(), re.MULTILINE)
+                  if {plugin, server, runtime.group(1) if runtime else None} != {version}:
+                      raise SystemExit("Release tag, plugin and server versions must match")
+                  PY
+                  echo "registry=${IMAGE%%/*}" >> "$GITHUB_OUTPUT"
+                  echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
+            - name: Set up Buildx
+              uses: docker/setup-buildx-action@v4
+
+            - name: Build image for testing
+              uses: docker/build-push-action@v7
+              with:
+                  context: .
+                  file: server/Dockerfile
+                  platforms: linux/amd64
+                  load: true
+                  tags: ${{ env.IMAGE }}:${{ steps.metadata.outputs.version }}
+                  labels: |
+                      org.opencontainers.image.source=https://github.com/${{ github.repository }}
+                      org.opencontainers.image.version=${{ steps.metadata.outputs.version }}
+                  cache-from: type=gha,scope=pdf2zh-server
+                  cache-to: type=gha,mode=max,scope=pdf2zh-server
+
+            - name: Verify installed runtime and health endpoint
+              env:
+                  VERSION: ${{ steps.metadata.outputs.version }}
+              run: |
+                  set -euo pipefail
+                  docker run --rm -i --entrypoint uv "$IMAGE:$VERSION" \
+                    run --no-sync python - "$VERSION" < scripts/check_installed_runtime.py
+                  docker run -d --name pdf2zh-smoke "$IMAGE:$VERSION"
+                  trap 'docker logs pdf2zh-smoke; docker rm -f pdf2zh-smoke' EXIT
+                  docker exec -i pdf2zh-smoke uv run --no-sync python - "$VERSION" <<'PY'
+                  import json
+                  import sys
+                  import time
+                  import urllib.error
+                  import urllib.request
+
+                  for attempt in range(30):
+                      try:
+                          with urllib.request.urlopen("http://127.0.0.1:8890/health", timeout=2) as response:
+                              health = json.load(response)
+                          break
+                      except (urllib.error.URLError, TimeoutError):
+                          time.sleep(1)
+                  else:
+                      raise SystemExit("Server did not become healthy")
+                  assert health["status"] == "ok", health
+                  assert health["version"] == sys.argv[1], health
+                  assert health["workspace"]["writable"], health
+                  print(json.dumps(health))
+                  PY
+
+            - name: Log in to registry
+              uses: docker/login-action@v4
+              with:
+                  registry: ${{ steps.metadata.outputs.registry }}
+                  username: ${{ steps.metadata.outputs.registry == 'ghcr.io' && github.actor || secrets.DOCKER_USERNAME }}
+                  password: ${{ steps.metadata.outputs.registry == 'ghcr.io' && github.token || secrets.DOCKER_TOKEN }}
+
+            - name: Publish tested image
+              env:
+                  VERSION: ${{ steps.metadata.outputs.version }}
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+                  docker push "$IMAGE:$VERSION"
+                  latest_tag="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)"
+                  if [[ "$latest_tag" == "$RELEASE_TAG" ]]; then
+                    docker tag "$IMAGE:$VERSION" "$IMAGE:latest"
+                    docker push "$IMAGE:latest"
+                  fi
+                  digest="$(docker image inspect "$IMAGE:$VERSION" --format '{{index .RepoDigests 0}}')"
+                  docker buildx imagetools inspect "$digest"
+                  # shellcheck disable=SC2016
+                  printf 'Published `%s`\n\nDeploy by digest: `%s`\n' "$IMAGE:$VERSION" "$digest" >> "$GITHUB_STEP_SUMMARY"
