@@ -72,7 +72,7 @@ uv run python scripts/vendor_pdf2zh_runtime.py
 
 - 兼容上限位于 `plugin/addon/manifest.json`，不能仅凭构建通过就放宽；先对照官方开发迁移说明，再用独立 profile/dataDir 启动目标 Zotero 验证。
 - 2026-09-11 在 Zotero 10.0.2（Firefox 140）验证 v5.3.1 的加载、菜单、设置、任务窗口和 LLM 编辑器。旧 toolkit 有 `ChromeUtils.import()` 弃用警告，未阻断上述功能；没有据此升级依赖。真实 LLM 翻译尚未纳入本次验证。
-- 若只改变兼容范围，可按 [Zotero 官方说明](https://www.zotero.org/support/dev/zotero_10_for_developers#updating_plugin_compatibility) 更新固定 `release/update.json` 中现有版本的 `applications.zotero.strict_max_version`，保留 `version`、`update_link`、`update_hash` 和原 XPI。先备份该更新元数据，发布后下载回读，并同步源码上限。无需为纯兼容更新重发 Python/Homebrew。
+- 若只改变兼容范围，可按 [Zotero 官方说明](https://www.zotero.org/support/dev/zotero_10_for_developers#updating_plugin_compatibility) 更新固定 `release/update.json` 中现有版本的 `applications.zotero.strict_max_version`，保留 `version`、`update_link` 和原 XPI；`update_hash` 必须校验为远端 XPI 的实际哈希，不能直接使用重新构建的包的哈希。先备份该更新元数据，发布后下载回读，并同步源码上限。无需为纯兼容更新重发 Python/Homebrew。
 
 ## Zotero 插件偏好页
 
