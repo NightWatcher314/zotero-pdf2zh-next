@@ -61,7 +61,9 @@ uv tool install --python 3.13 zotero-pdf2zh-next
 zotero-pdf2zh-next
 ```
 
-也可以用 Docker 启动本地服务：
+Docker 预构建镜像发布在 [GHCR](https://github.com/NightWatcher314/zotero-pdf2zh-next/pkgs/container/zotero-pdf2zh-next)，目前支持 `linux/amd64`，提供版本 tag 和 `latest`。已有 Dockge/Compose 部署可替换镜像地址，保留原有端口与数据挂载；生产部署建议固定镜像 digest。
+
+也可以从源码构建并启动 Docker 服务：
 
 ```bash
 docker compose up --build -d

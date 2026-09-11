@@ -163,6 +163,8 @@ Homebrew formula 必须继续 pin `python@3.13`。目前 `pdf2zh_next -> pydanti
 
 当前发布仓库为 `ghcr.io/nightwatcher314/zotero-pdf2zh-next`，通过仓库变量 `DOCKER_IMAGE` 配置；认证使用内置 `GITHUB_TOKEN`，不保存额外 registry secret。
 
+2026-09-11 首次发布验收：[CI #34587406079](https://github.com/NightWatcher314/zotero-pdf2zh-next/actions/runs/34587406079) 成功；v5.3.1 的 OCR 初始化、运行版本和 HTTP 健康检查通过。包为 Public，匿名读取 manifest/config 成功；`5.3.1` 与 `latest` 均指向 `sha256:19e73ca31b631d1552f6719e281838934ab48d836a1cc1d8d0f69ea4c1b0ec07`（`linux/amd64`），源码 revision 为 `8beaab118cc90eca67e17f30ca3c795f7986552c`。此次仅发布镜像，未更新 NAS 的 Dockge stack。
+
 仓库 Actions 配置：
 
 - Variable `DOCKER_IMAGE`：完整且小写的镜像仓库路径，不含 tag。例如 `ghcr.io/nightwatcher314/zotero-pdf2zh-next` 或 `docker.io/<username>/zotero-pdf2zh-next`；Harbor 使用实际 registry/项目路径。
