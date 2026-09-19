@@ -4,6 +4,8 @@ import {
     getActiveLLMApiByService,
     llmApiManager,
     LLMApiData,
+    RuntimeSettings,
+    resolveRuntimeSettings,
     emptyLLMApi,
     formatExtraDataForDisplay,
 } from "./llmApiManager";
@@ -277,6 +279,7 @@ async function openLLMApiEditDialog(key?: string): Promise<boolean> {
         apiUrl: llmApi?.apiUrl || "",
         activate: llmApi?.activate || false,
         extraData: llmApi?.extraData || {},
+        runtime: llmApi?.runtime || {},
     };
 
     const windowArgs: {
@@ -288,6 +291,7 @@ async function openLLMApiEditDialog(key?: string): Promise<boolean> {
             apiUrl: string;
             activate: boolean;
             extraData: any;
+            runtime?: RuntimeSettings;
         };
         isEdit: boolean;
         result?: {
@@ -299,6 +303,7 @@ async function openLLMApiEditDialog(key?: string): Promise<boolean> {
                 apiUrl: string;
                 activate: boolean;
                 extraData?: Record<string, any>;
+                runtime?: RuntimeSettings;
             };
         };
     } = {
@@ -342,6 +347,7 @@ async function openLLMApiEditDialog(key?: string): Promise<boolean> {
         apiUrl: userData.apiUrl,
         activate: userData.activate,
         extraData: userData.extraData || {},
+        runtime: userData.runtime,
     };
     addon.data.llmApis?.map.set(newLLMApi.key, newLLMApi);
     updateCachedLLMApiKeys();
@@ -876,8 +882,16 @@ async function checkServerConnection() {
                 service,
                 sourceLang: getPref("sourceLang")?.toString() || "en",
                 targetLang: getPref("targetLang")?.toString() || "zh-CN",
-                qps: getPref("qps")?.toString() || "1",
-                poolSize: getPref("poolSize")?.toString() || "0",
+                ...resolveRuntimeSettings(
+                    {
+                        qps: getPref("qps")?.toString() || "10",
+                        retryCount: getPref("retryCount")?.toString() ?? "-1",
+                        retryInterval:
+                            getPref("retryInterval")?.toString() ?? "2",
+                        poolSize: getPref("poolSize")?.toString() || "0",
+                    },
+                    llmApi?.runtime,
+                ),
                 ocr: getPref("ocr")?.toString() || "false",
                 autoOcr: getPref("autoOcr")?.toString() || "true",
                 translateTableText:

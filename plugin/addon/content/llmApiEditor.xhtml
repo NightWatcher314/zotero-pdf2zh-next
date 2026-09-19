@@ -296,6 +296,53 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
             </div>
 
             <div class="form-group">
+                <label>此配置的运行参数</label>
+                <p>
+                    留空继承插件全局设置。仅影响新提交任务；并发线程数控制单篇
+                    PDF 的翻译工作线程，QPS 控制每秒请求速率。
+                </p>
+                <label for="runtime-qps">最大 QPS</label>
+                <input
+                    id="runtime-qps"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="继承全局"
+                />
+                <label for="runtime-poolSize">并发线程数（0：自动）</label>
+                <input
+                    id="runtime-poolSize"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="继承全局"
+                />
+                <label for="runtime-retryCount"
+                    >额外重试次数（-1：引擎默认；0：不重试）</label
+                >
+                <input
+                    id="runtime-retryCount"
+                    type="number"
+                    min="-1"
+                    max="100"
+                    step="1"
+                    placeholder="继承全局"
+                />
+                <label for="runtime-retryInterval">固定重试间隔（秒）</label>
+                <input
+                    id="runtime-retryInterval"
+                    type="number"
+                    min="0"
+                    max="300"
+                    step="1"
+                    placeholder="继承全局"
+                />
+                <p>
+                    自定义重试适用于使用 OpenAI SDK 的引擎；其他引擎请设为 -1。
+                </p>
+            </div>
+
+            <div class="form-group">
                 <label>额外参数</label>
                 <div id="extra-fields-container"></div>
                 <button
@@ -937,6 +984,16 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
                         ? currentData.activate
                         : true;
 
+                for (const key of [
+                    "qps",
+                    "poolSize",
+                    "retryCount",
+                    "retryInterval",
+                ]) {
+                    document.getElementById(`runtime-${key}`).value =
+                        currentData.runtime?.[key] ?? "";
+                }
+
                 if (currentData.extraData) {
                     for (const key in currentData.extraData)
                         addExtraFieldRow(key, currentData.extraData[key]);
@@ -1082,6 +1139,17 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
             }
 
             function saveLLMApi() {
+                const runtime = {};
+                for (const key of [
+                    "qps",
+                    "poolSize",
+                    "retryCount",
+                    "retryInterval",
+                ]) {
+                    const input = document.getElementById(`runtime-${key}`);
+                    if (!input.reportValidity()) return;
+                    if (input.value !== "") runtime[key] = Number(input.value);
+                }
                 let extraDataObject = {};
                 const rows = document
                     .getElementById("extra-fields-container")
@@ -1107,6 +1175,7 @@ href="chrome://zotero/skin/zotero.css" type="text/css"?>
                     apiUrl: u,
                     activate: a,
                     extraData: extraDataObject,
+                    runtime,
                 };
                 if (window.arguments && window.arguments[0]) {
                     window.arguments[0].result = {

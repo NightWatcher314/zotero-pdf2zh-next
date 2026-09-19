@@ -274,6 +274,7 @@ def validate_config_request(data: dict[str, Any]):
         "service": service,
         "qps": parse_int(data.get("qps"), 1, minimum=1),
         "pool_size": parse_int(data.get("poolSize"), 0, minimum=0),
+        **parse_retry_options(data),
         "ocr": parse_bool(data.get("ocr"), False),
         "auto_ocr": parse_bool(data.get("autoOcr"), True),
         "translate_table_text": parse_bool(
@@ -312,6 +313,7 @@ def prepare_translation_request(
         "service": service,
         "qps": parse_int(data.get("qps"), 8, minimum=1),
         "pool_size": parse_int(data.get("poolSize"), 0, minimum=0),
+        **parse_retry_options(data),
         "skip_last_pages": parse_int(data.get("skipLastPages"), 0, minimum=0),
         "ocr": parse_bool(data.get("ocr"), False),
         "auto_ocr": parse_bool(data.get("autoOcr"), True),
@@ -447,6 +449,23 @@ def parse_bool(value: Any, default: bool) -> bool:
         if lowered in {"false", "0", "no", "off"}:
             return False
     return default
+
+
+def parse_retry_options(data: dict[str, Any]) -> dict[str, int]:
+    result = {}
+    for key, target, default, minimum, maximum in (
+        ("retryCount", "retry_count", -1, -1, 100),
+        ("retryInterval", "retry_interval", 2, 0, 300),
+    ):
+        value = data.get(key, default)
+        try:
+            parsed = int(str(value))
+        except (TypeError, ValueError):
+            raise RequestValidationError(f"{key} must be an integer") from None
+        if not minimum <= parsed <= maximum:
+            raise RequestValidationError(f"{key} must be between {minimum} and {maximum}")
+        result[target] = parsed
+    return result
 
 
 def parse_int(value: Any, default: int, minimum: int = 0) -> int:

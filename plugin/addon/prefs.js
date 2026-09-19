@@ -13,6 +13,8 @@ pref("__prefsPrefix__.outputDual", true);
 
 pref("__prefsPrefix__.skipLastPages", 0);
 pref("__prefsPrefix__.qps", 10);
+pref("__prefsPrefix__.retryCount", -1);
+pref("__prefsPrefix__.retryInterval", 2);
 pref("__prefsPrefix__.poolSize", 0);
 pref("__prefsPrefix__.rename", true);
 pref("__prefsPrefix__.openAfterTranslate", false);

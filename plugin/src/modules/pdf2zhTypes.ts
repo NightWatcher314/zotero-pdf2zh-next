@@ -10,6 +10,8 @@ export interface ServerConfig {
     outputModes: OutputMode[];
     skipLastPages: string;
     qps: string;
+    retryCount: string;
+    retryInterval: string;
     poolSize: string;
     ocr: string;
     autoOcr: string;

@@ -5,6 +5,27 @@ export interface LLMServiceConfig {
     extraData?: any[];
 }
 
+export interface RuntimeSettings {
+    qps?: number;
+    poolSize?: number;
+    retryCount?: number;
+    retryInterval?: number;
+}
+
+export function resolveRuntimeSettings(
+    defaults: Record<keyof RuntimeSettings, string>,
+    overrides?: RuntimeSettings,
+): Record<keyof RuntimeSettings, string> {
+    return {
+        qps: String(overrides?.qps ?? defaults.qps),
+        poolSize: String(overrides?.poolSize ?? defaults.poolSize),
+        retryCount: String(overrides?.retryCount ?? defaults.retryCount),
+        retryInterval: String(
+            overrides?.retryInterval ?? defaults.retryInterval,
+        ),
+    };
+}
+
 export interface LLMApiData {
     key: string;
     service: string;
@@ -12,6 +33,7 @@ export interface LLMApiData {
     apiUrl: string;
     model: string;
     activate: boolean;
+    runtime?: RuntimeSettings;
     extraData?: Record<string, any>;
 }
 
@@ -125,6 +147,7 @@ export function createLLMApiFromFormData(formData: any): LLMApiData {
         apiUrl: formData.apiUrl || "",
         model: formData.model || formData.modelselect || "",
         activate: formData.activate !== undefined ? formData.activate : false,
+        runtime: formData.runtime,
         extraData: formData.extraData || {},
     };
 }

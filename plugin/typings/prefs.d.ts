@@ -18,6 +18,8 @@ declare namespace _ZoteroTypes {
       "outputDual": boolean;
       "skipLastPages": number;
       "qps": number;
+      "retryCount": number;
+      "retryInterval": number;
       "poolSize": number;
       "rename": boolean;
       "openAfterTranslate": boolean;

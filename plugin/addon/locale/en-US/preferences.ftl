@@ -19,7 +19,7 @@ pref-outputMode = Output PDFs
 pref-outputMode-mono = Chinese Only
 pref-outputMode-dual = Bilingual
 pref-open = Open translated PDF after import
-pref-runtime = pdf2zh_next Runtime
+pref-runtime = Default Runtime Settings
 pref-ocr = Force OCR workaround
 pref-autoOcr = Auto OCR workaround
 pref-translateTableText = Translate text inside tables
@@ -36,3 +36,7 @@ pref-llmapi-activate = Activate
 pref-llmapi-totop = Pin
 pref-check-connection = Check Server & Config
 pref-live-api-test = Also run a live API test (sends one short translation request)
+
+pref-retryCount = Additional fragment request retries
+pref-retryInterval = Retry interval (seconds)
+pref-retry-help = -1: engine defaults; 0: no retries; 1–100: additional attempts. Custom retries require an OpenAI SDK engine, with a fixed interval (0–300 seconds). Applies to timeouts, connection failures, 408/409/429 and 5xx. Paragraph fallback may issue separate requests. Requires a server supporting these settings.

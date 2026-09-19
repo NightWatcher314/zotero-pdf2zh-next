@@ -1,6 +1,7 @@
 import { getPref } from "../utils/prefs";
 import { ServerConfig, PDFOperationOptions, OutputMode } from "./pdf2zhTypes";
 import { loadLLMApisFromPrefs } from "./preferenceScript";
+import { RuntimeSettings, resolveRuntimeSettings } from "./llmApiManager";
 
 type ActiveLLMApiConfig = {
     service: string;
@@ -8,6 +9,7 @@ type ActiveLLMApiConfig = {
     apiKey: string;
     apiUrl: string;
     extraData: Record<string, any>;
+    runtime?: RuntimeSettings;
 } | null;
 
 export type TaskOutputResponse = {
@@ -42,8 +44,7 @@ export class PDF2zhHelperFactory {
             outputModes: config.outputModes,
             service: config.service,
             skipLastPages: config.skipLastPages,
-            qps: config.qps,
-            poolSize: config.poolSize,
+            ...resolveRuntimeSettings(config, llmApiConfig?.runtime),
             ocr: config.ocr,
             autoOcr: config.autoOcr,
             translateTableText: config.translateTableText,
@@ -189,6 +190,8 @@ export class PDF2zhHelperFactory {
             outputModes: this.getOutputModesFromPrefs(),
             skipLastPages: getPref("skipLastPages")?.toString() || "0",
             qps: getPref("qps")?.toString() || "10",
+            retryCount: getPref("retryCount")?.toString() ?? "-1",
+            retryInterval: getPref("retryInterval")?.toString() ?? "2",
             poolSize: getPref("poolSize")?.toString() || "0",
             ocr: getPref("ocr")?.toString() || "false",
             autoOcr: getPref("autoOcr")?.toString() || "true",
@@ -218,6 +221,7 @@ export class PDF2zhHelperFactory {
                     apiKey: llmApi.apiKey,
                     apiUrl: llmApi.apiUrl,
                     extraData: llmApi.extraData || {},
+                    runtime: llmApi.runtime,
                 };
             }
         }

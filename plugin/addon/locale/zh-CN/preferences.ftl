@@ -19,7 +19,7 @@ pref-outputMode = 输出PDF
 pref-outputMode-mono = 只要中文
 pref-outputMode-dual = 中英文对照
 pref-open = 导入后自动打开翻译PDF
-pref-runtime = pdf2zh_next 运行参数
+pref-runtime = 全局默认运行参数
 pref-ocr = 强制启用OCR workaround
 pref-autoOcr = 自动启用OCR workaround
 pref-translateTableText = 翻译表格内文字
@@ -36,3 +36,7 @@ pref-llmapi-activate = 激活
 pref-llmapi-totop = 置顶
 pref-check-connection = 检查连接与配置
 pref-live-api-test = 同时执行真实 API 测试（会发送一条短翻译请求）
+
+pref-retryCount = 片段请求额外重试次数
+pref-retryInterval = 重试间隔（秒）
+pref-retry-help = -1：保留引擎默认；0：不重试；1–100：额外尝试次数。自定义仅支持使用 OpenAI SDK 的引擎；间隔为固定秒数（0–300）。针对超时、连接异常、408/409/429 和 5xx；段落回退可能另发请求。需配套支持此设置的服务端。

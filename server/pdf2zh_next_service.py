@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import inspect
 import logging
 import shutil
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 from typing import Callable
 
+import openai
 from pypdf import PdfReader
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_fixed
 
 from pdf2zh_next.config.cli_env_model import CLIEnvSettingsModel
 from pdf2zh_next.high_level import BabelDOCConfig
@@ -529,6 +533,56 @@ def collect_output_files(
     return files
 
 
+def configure_request_retries(
+    translator: Any,
+    payload: dict[str, Any],
+    check_cancelled: Callable[[], None] | None = None,
+) -> None:
+    retry_count = int(payload.get("retry_count", -1))
+    if retry_count < 0:
+        return
+    client = getattr(translator, "client", None)
+    if not isinstance(client, openai.OpenAI):
+        raise ValueError(
+            "Custom request retries require an OpenAI SDK translator; "
+            "set retry count to -1 to use this engine's defaults."
+        )
+
+    # Own both retry layers, on this task's instance only.
+    client.max_retries = 0
+
+    def is_transient(exc: BaseException) -> bool:
+        return isinstance(exc, openai.APIConnectionError) or (
+            isinstance(exc, openai.APIStatusError)
+            and (exc.status_code in (408, 409, 429) or exc.status_code >= 500)
+        )
+
+    def sleep(seconds: float) -> None:
+        deadline = time.monotonic() + seconds
+        while True:
+            if check_cancelled is not None:
+                check_cancelled()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            time.sleep(min(remaining, 0.2))
+
+    for name in ("do_translate", "do_llm_translate"):
+        method = getattr(translator, name)
+        original = inspect.unwrap(method.__func__).__get__(translator, type(translator))
+        setattr(
+            translator,
+            name,
+            retry(
+                retry=retry_if_exception(is_transient),
+                stop=stop_after_attempt(retry_count + 1),
+                wait=wait_fixed(int(payload.get("retry_interval", 2))),
+                sleep=sleep,
+                reraise=True,
+            )(original),
+        )
+
+
 async def translate_pdf_with_callbacks(
     payload: dict[str, Any],
     job_id: str,
@@ -549,6 +603,17 @@ async def translate_pdf_with_callbacks(
     try:
         settings = create_runtime_settings(payload)
         translation_config = create_babeldoc_config(settings, input_path)
+        configure_request_retries(
+            translation_config.translator, payload, translation_config.raise_if_cancelled
+        )
+        term_translator = translation_config.term_extraction_translator
+        if (
+            term_translator is not None
+            and term_translator is not translation_config.translator
+        ):
+            configure_request_retries(
+                term_translator, payload, translation_config.raise_if_cancelled
+            )
         if on_config_ready is not None:
             on_config_ready(translation_config)
 
@@ -665,6 +730,7 @@ def validate_service_config(payload: dict[str, Any], job_id: str) -> ValidationR
         try:
             settings = create_runtime_settings(validation_payload)
             translator = get_translator(settings)
+            configure_request_retries(translator, payload)
         except Exception as exc:
             raise RuntimeError(explain_service_error(exc)) from exc
 
