@@ -197,7 +197,7 @@ CI job 成功不等于该平台一定生成了 bottle。例如 Intel macOS runne
 - tap `main` 的 Formula `bottle do` 已写入对应平台 SHA。
 - GitHub bottle release 已有对应资产；本机验证时 `brew info --json=v2` 显示 `poured_from_bottle: true`。
 
-当前发布覆盖 Apple Silicon Sonoma、Apple Silicon Tahoe 和 Linux x86_64。Intel macOS 回退到源码构建。
+v5.4.0 发布覆盖 Apple Silicon Tahoe 和 Linux x86_64。Sonoma 因依赖缺少 bottle，被 test-bot 跳过；Sonoma 与 Intel macOS 回退到源码构建。
 
 ## README 的边界
 
@@ -210,3 +210,13 @@ README 保持给使用者看的内容：
 - 在 Zotero 里怎么用。
 
 服务接口、请求体、内部任务结构、发布脚本细节都放到 `docs/` 或源码附近，不放 README。
+
+
+## v5.4.0 发布验收（2026-09-19）
+
+- 源码与 tag：`878ab2c116297aaa3512793b1b67acacd689aa9d`；[Release](https://github.com/NightWatcher314/zotero-pdf2zh-next/releases/tag/v5.4.0) 已发布 XPI，固定更新清单版本及 SHA-512 与产物一致。
+- 本次加入请求重试及每 API 配置的运行参数覆盖。默认继承保持兼容；初始化连接探测与 BabelDOC 段落回退仍有独立请求行为。
+- 验证：服务端 50 项测试、插件 2 项配置测试、完整 lint/typecheck/build、独立 wheel 安装及运行检查通过。配置编辑器在浏览器中验证回填、保存、零值与非法值处理；未在真实 Zotero 中验收。
+- [PyPI CI](https://github.com/NightWatcher314/zotero-pdf2zh-next/actions/runs/35418145867) 与 [Docker CI](https://github.com/NightWatcher314/zotero-pdf2zh-next/actions/runs/35418207467) 成功。PyPI wheel/sdist 已可查询；GHCR `5.4.0` / `latest` 匿名读取均为 `sha256:27f855e8bab931d29cb4e9af0388440f0ef121d3261cd986f30331f2693965ab`。
+- Homebrew [PR #13](https://github.com/NightWatcher314/homebrew-formula/pull/13) 经测试及 [bottle 发布](https://github.com/NightWatcher314/homebrew-formula/actions/runs/35418704660) 完成，tap 主分支已更新，Tahoe ARM 与 Linux x86_64 资产存在。
+- 发布从最新远端 main 的隔离副本完成，原工作目录的既有未提交改动保留。此次未升级 NAS 或其他 Host 的运行服务。
