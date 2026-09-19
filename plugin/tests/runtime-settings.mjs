@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import fs from "node:fs";
 import vm from "node:vm";
+import { URL } from "node:url";
 import ts from "typescript";
 
 function loadModule(file, mocks = {}, globals = {}) {
