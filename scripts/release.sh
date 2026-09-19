@@ -17,9 +17,9 @@ Examples:
 The script updates the shared plugin/server version, runs validation, commits
 the version bump, pushes main, publishes the server package to PyPI, creates
 the v<version> GitHub release with the XPI asset using CHANGELOG.md release
-notes, updates the fixed "release" GitHub release with update.json for Zotero's
-Check for Updates flow, publishes a tested Docker image through GitHub Actions,
-and publishes the Homebrew formula through a bottle PR.
+notes, and publishes Docker and Homebrew bottles concurrently. Once every enabled
+channel succeeds, it updates the fixed "release" asset with update.json for
+Zotero's Check for Updates flow.
 
 Before running, add a CHANGELOG.md section like:
   ## v5.1.1 - YYYY-MM-DD
@@ -403,21 +403,9 @@ EOF
             --notes-file "$NOTES_FILE" \
             --latest
     fi
-
-    if gh release view release --repo "$GITHUB_REPO" >/dev/null 2>&1; then
-        gh release upload release plugin/build/update.json --repo "$GITHUB_REPO" --clobber
-    else
-        gh release create release \
-            plugin/build/update.json \
-            --repo "$GITHUB_REPO" \
-            --target "$COMMIT" \
-            --title "Zotero update manifest" \
-            --notes "Stable update manifest used by Zotero Check for Updates." \
-            --latest=false
-    fi
 fi
 
-if [[ "$PUBLISH_DOCKER" -eq 1 ]]; then
+publish_docker() {
     PREVIOUS_DOCKER_RUN="$(gh run list \
         --repo "$GITHUB_REPO" --workflow publish-docker.yml \
         --event workflow_dispatch --limit 1 \
@@ -434,9 +422,12 @@ if [[ "$PUBLISH_DOCKER" -eq 1 ]]; then
     done
     [[ -n "$DOCKER_RUN" ]] || die "Docker publish workflow did not start"
     gh run watch "$DOCKER_RUN" --repo "$GITHUB_REPO" --exit-status
-fi
+}
 
-if [[ "$UPDATE_TAP" -eq 1 && "$PUSH" -eq 1 ]]; then
+publish_homebrew() (
+    # This publisher owns its temporary checkout, independently of the parent.
+    TEMP_PATHS=()
+    trap cleanup EXIT
     TAP_REPO="NightWatcher314/homebrew-formula"
     TAP_BRANCH="zotero-pdf2zh-next-$TAG"
     TAP_REMOTE="$(git -C "$TAP_PATH" remote get-url origin)"
@@ -495,18 +486,21 @@ s/sha256 "[^"]+"/sha256 "$ENV{SHA256}"/;
         TAP_PR_NUMBER="${TAP_PR_URL##*/}"
     fi
 
-    TAP_CHECKS_FOUND=0
+    # Wait for the entire workflow: a dynamic matrix may not have registered
+    # its platform checks when select-matrix first reports success.
+    TAP_TEST_RUN=""
     for _ in {1..30}; do
-        if [[ "$(gh pr checks "$TAP_PR_NUMBER" \
+        TAP_TEST_RUN="$(gh run list \
             --repo "$TAP_REPO" \
-            --json name \
-            --jq 'length' 2>/dev/null || true)" -gt 0 ]]; then
-            TAP_CHECKS_FOUND=1
-            break
-        fi
+            --workflow tests.yml \
+            --event pull_request \
+            --commit "$TAP_HEAD_SHA" \
+            --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+        [[ -n "$TAP_TEST_RUN" ]] && break
         sleep 2
     done
-    [[ "$TAP_CHECKS_FOUND" -eq 1 ]] || die "Homebrew bottle checks did not start for PR #$TAP_PR_NUMBER"
+    [[ -n "$TAP_TEST_RUN" ]] || die "Homebrew bottle tests did not start for PR #$TAP_PR_NUMBER"
+    gh run watch "$TAP_TEST_RUN" --repo "$TAP_REPO" --exit-status
     gh pr checks "$TAP_PR_NUMBER" --repo "$TAP_REPO" --watch --fail-fast
 
     PREVIOUS_PUBLISH_RUN="$(gh run list \
@@ -559,6 +553,49 @@ s/sha256 "[^"]+"/sha256 "$ENV{SHA256}"/;
     else
         echo "Skipping Homebrew validation because brew is not installed" >&2
     fi
+)
+
+publish_update_manifest() {
+    if gh release view release --repo "$GITHUB_REPO" >/dev/null 2>&1; then
+        gh release upload release plugin/build/update.json --repo "$GITHUB_REPO" --clobber
+    else
+        gh release create release \
+            plugin/build/update.json \
+            --repo "$GITHUB_REPO" \
+            --target "$COMMIT" \
+            --title "Zotero update manifest" \
+            --notes "Stable update manifest used by Zotero Check for Updates." \
+            --latest=false
+    fi
+}
+
+# Run independent publishers concurrently; promote automatic updates only on success.
+PUBLISH_PIDS=()
+PUBLISH_NAMES=()
+if [[ "$PUBLISH_DOCKER" -eq 1 ]]; then
+    publish_docker &
+    PUBLISH_PIDS+=("$!")
+    PUBLISH_NAMES+=("Docker")
+fi
+if [[ "$UPDATE_TAP" -eq 1 && "$PUSH" -eq 1 ]]; then
+    publish_homebrew &
+    PUBLISH_PIDS+=("$!")
+    PUBLISH_NAMES+=("Homebrew")
+fi
+
+PUBLISH_FAILED=0
+for index in "${!PUBLISH_PIDS[@]}"; do
+    if wait "${PUBLISH_PIDS[$index]}"; then
+        echo "${PUBLISH_NAMES[$index]} publication completed"
+    else
+        echo "${PUBLISH_NAMES[$index]} publication failed" >&2
+        PUBLISH_FAILED=1
+    fi
+done
+[[ "$PUBLISH_FAILED" -eq 0 ]] || die "Distribution publishing failed; Zotero update manifest was not changed"
+
+if [[ "$PUBLISH_RELEASE" -eq 1 ]]; then
+    publish_update_manifest
 fi
 
 echo "Released $TAG at $COMMIT"

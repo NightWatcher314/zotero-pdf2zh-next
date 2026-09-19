@@ -142,8 +142,9 @@ scripts/release.sh 5.2.3
 - 创建主仓库 release commit 并推送。
 - 使用本地 token 或 GitHub Trusted Publisher 发布服务端包到 PyPI。
 - 确认 PyPI 已可查询该版本后，用 `CHANGELOG.md` 对应章节生成 GitHub Release notes。
-- 上传 Zotero `.xpi` 和固定 `release/update.json`。
-- 更新 Homebrew tap formula 并跑 brew 验证。
+- 上传 Zotero `.xpi`，并行发布 Docker 与 Homebrew bottle。
+- 等待所有启用渠道完成；任一失败时返回失败，不改自动更新清单。
+- 全部启用渠道成功后，最后更新固定 `release/update.json`。
 
 `plugin/pnpm-lock.yaml` 必须提交。CI 和发版都使用 `--frozen-lockfile`，依赖变化后要同步更新 lockfile。
 
@@ -156,6 +157,10 @@ PyPI Trusted Publisher 的绑定必须保持为：owner `NightWatcher314`、repo
 如果临时不想上传 PyPI，可以传 `--no-pypi`；默认稳定版发版会同时发布 XPI、PyPI、Docker 和 Homebrew。
 
 Homebrew formula 必须继续 pin `python@3.13`。目前 `pdf2zh_next -> pydantic-core` 依赖链在 Python 3.14 上不应被假定可用。
+
+发布脚本的 Docker 与 Homebrew 任务独立运行、统一等待并汇总失败。某渠道失败后，已完成渠道的版本资产保留，自动更新清单保持原版本；修复失败渠道后可从同一发布提交重新执行同版本发布。显式 `--no-docker` / `--no-tap` 排除的渠道不参与完成门槛。脚本内部并行不代表允许多个版本同时覆盖稳定更新清单，应保持单个发布操作。
+
+离线编排测试：`uv run --no-project python -m unittest discover -s scripts/tests -v`。测试替代外部发布命令，验证并行启动、单/双渠道失败、等待完成、清单后置及跳过渠道；不会推送或上传任何产物。CI 同时运行这些测试。Homebrew 发布门槛按当前 PR head SHA 定位并等待整个 `tests.yml` run，再核对 PR checks，避免动态矩阵任务尚未登记时提前放行。
 
 ### Docker 镜像 CI
 
